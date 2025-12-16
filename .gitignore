@@ -1,0 +1,160 @@
+# ===================
+# macOS
+# ===================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# ===================
+# Xcode
+# ===================
+xcuserdata/
+DerivedData/
+*.xcscmblueprint
+*.xccheckout
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.playground/timeline.xctimeline
+*.playground/playground.xcworkspace/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+*.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# ===================
+# Swift Package Manager
+# ===================
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.xcframework/
+
+# ===================
+# Xcode Archives
+# ===================
+*.xcarchive
+
+# ===================
+# Build artifacts
+# ===================
+*.o
+*.a
+*.dylib
+*.so
+*.dSYM/
+build/
+
+# ===================
+# Test artifacts
+# ===================
+*.xcresult
+coverage/
+*.profraw
+*.profdata
+.coverage/
+
+# ===================
+# CocoaPods
+# ===================
+Pods/
+Podfile.lock
+
+# ===================
+# Carthage
+# ===================
+Carthage/Build/
+Carthage/Checkouts/
+
+# ===================
+# Tuist
+# ===================
+Derived/
+
+# ===================
+# fastlane
+# ===================
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# ===================
+# IDE
+# ===================
+# Vim
+*.swp
+*.swo
+*~
+
+# JetBrains (AppCode, etc.)
+.idea/
+*.iml
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ===================
+# Credentials & Secrets
+# ===================
+.netrc
+*.pem
+*.p12
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+AuthKey_*.p8
+
+# ===================
+# Environment
+# ===================
+.env
+.env.*
+!.env.example
+
+# ===================
+# Generated files
+# ===================
+*.generated.swift
+Generated/
+
+# ===================
+# Documentation
+# ===================
+docs/
+.jazzy/
+docarchive/
+
+# ===================
+# Crash logs
+# ===================
+*.crash
+*.ips
+
+# ===================
+# Misc
+# ===================
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Backup files
+*.bak
+*.orig
+
+# SourceKitten
+.sourcekit/
+
+# SwiftLint/SwiftFormat local overrides
+# .swiftlint.yml
+# .swiftformat
