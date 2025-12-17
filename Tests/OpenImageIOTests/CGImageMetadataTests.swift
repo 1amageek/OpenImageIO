@@ -38,7 +38,7 @@ struct CGImageMetadataCreationTests {
 
     @Test("Create metadata from XMP data")
     func createFromXMPData() {
-        let xmpData = CFData(bytes: TestData.sampleXMP)
+        let xmpData = Data(TestData.sampleXMP)
         let metadata = CGImageMetadataCreateFromXMPData(xmpData)
 
         #expect(metadata != nil)
@@ -46,7 +46,7 @@ struct CGImageMetadataCreationTests {
 
     @Test("Create metadata from empty XMP returns nil")
     func createFromEmptyXMP() {
-        let xmpData = CFData(bytes: [])
+        let xmpData = Data()
         let metadata = CGImageMetadataCreateFromXMPData(xmpData)
 
         #expect(metadata == nil)
@@ -397,10 +397,10 @@ struct CGImageMetadataXMPTests {
         let xmpData = CGImageMetadataCreateXMPData(metadata, nil)
 
         #expect(xmpData != nil)
-        #expect(xmpData!.length > 0)
+        #expect(xmpData!.count > 0)
 
         // Verify XMP structure
-        let xmpString = String(bytes: xmpData!.data, encoding: .utf8)
+        let xmpString = String(data: xmpData!, encoding: .utf8)
         #expect(xmpString?.contains("xmpmeta") == true)
         #expect(xmpString?.contains("rdf:RDF") == true)
     }
@@ -425,7 +425,7 @@ struct CGImageMetadataXMPTests {
 
         // Parse XMP back would require more sophisticated parsing
         // For now just verify the XMP was created
-        let xmpString = String(bytes: xmpData!.data, encoding: .utf8)
+        let xmpString = String(data: xmpData!, encoding: .utf8)
         #expect(xmpString?.contains("Roundtrip Test") == true)
     }
 }

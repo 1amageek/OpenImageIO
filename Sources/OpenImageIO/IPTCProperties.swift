@@ -4,202 +4,204 @@
 // Full API compatibility with Apple's ImageIO framework
 // Metadata keys for International Press Telecommunications Council (IPTC) data
 
+@preconcurrency import Foundation
+
 // MARK: - Dictionary
 
 /// A dictionary of key-value pairs for an image that uses International Press Telecommunications Council (IPTC) metadata.
-public let kCGImagePropertyIPTCDictionary: CFString = "{IPTC}"
+public let kCGImagePropertyIPTCDictionary: String = "{IPTC}"
 
 // MARK: - Image Categorization
 
 /// The urgency level.
-public let kCGImagePropertyIPTCUrgency: CFString = "Urgency"
+public let kCGImagePropertyIPTCUrgency: String = "Urgency"
 
 /// The subject.
-public let kCGImagePropertyIPTCSubjectReference: CFString = "SubjectReference"
+public let kCGImagePropertyIPTCSubjectReference: String = "SubjectReference"
 
 /// The category.
-public let kCGImagePropertyIPTCCategory: CFString = "Category"
+public let kCGImagePropertyIPTCCategory: String = "Category"
 
 /// A supplemental category.
-public let kCGImagePropertyIPTCSupplementalCategory: CFString = "SupplementalCategory"
+public let kCGImagePropertyIPTCSupplementalCategory: String = "SupplementalCategory"
 
 /// A fixture identifier.
-public let kCGImagePropertyIPTCFixtureIdentifier: CFString = "FixtureIdentifier"
+public let kCGImagePropertyIPTCFixtureIdentifier: String = "FixtureIdentifier"
 
 /// Keywords relevant to the image.
-public let kCGImagePropertyIPTCKeywords: CFString = "Keywords"
+public let kCGImagePropertyIPTCKeywords: String = "Keywords"
 
 /// The content location code.
-public let kCGImagePropertyIPTCContentLocationCode: CFString = "ContentLocationCode"
+public let kCGImagePropertyIPTCContentLocationCode: String = "ContentLocationCode"
 
 /// The content location name.
-public let kCGImagePropertyIPTCContentLocationName: CFString = "ContentLocationName"
+public let kCGImagePropertyIPTCContentLocationName: String = "ContentLocationName"
 
 /// The edit status.
-public let kCGImagePropertyIPTCEditStatus: CFString = "EditStatus"
+public let kCGImagePropertyIPTCEditStatus: String = "EditStatus"
 
 /// An editorial update.
-public let kCGImagePropertyIPTCEditorialUpdate: CFString = "EditorialUpdate"
+public let kCGImagePropertyIPTCEditorialUpdate: String = "EditorialUpdate"
 
 /// The editorial cycle (morning, evening, or both) of the image.
-public let kCGImagePropertyIPTCObjectCycle: CFString = "ObjectCycle"
+public let kCGImagePropertyIPTCObjectCycle: String = "ObjectCycle"
 
 // MARK: - Image Information
 
 /// The image type.
-public let kCGImagePropertyIPTCImageType: CFString = "ImageType"
+public let kCGImagePropertyIPTCImageType: String = "ImageType"
 
 /// The image orientation (portrait, landscape, or square).
-public let kCGImagePropertyIPTCImageOrientation: CFString = "ImageOrientation"
+public let kCGImagePropertyIPTCImageOrientation: String = "ImageOrientation"
 
 /// The language identifier, a two-letter code defined by ISO 639:1988.
-public let kCGImagePropertyIPTCLanguageIdentifier: CFString = "LanguageIdentifier"
+public let kCGImagePropertyIPTCLanguageIdentifier: String = "LanguageIdentifier"
 
 /// The description of the image.
-public let kCGImagePropertyIPTCCaptionAbstract: CFString = "CaptionAbstract"
+public let kCGImagePropertyIPTCCaptionAbstract: String = "CaptionAbstract"
 
 /// A summary of the contents of the image.
-public let kCGImagePropertyIPTCHeadline: CFString = "Headline"
+public let kCGImagePropertyIPTCHeadline: String = "Headline"
 
 /// The name of the service that provided the image.
-public let kCGImagePropertyIPTCCredit: CFString = "Credit"
+public let kCGImagePropertyIPTCCredit: String = "Credit"
 
 /// The star rating.
-public let kCGImagePropertyIPTCStarRating: CFString = "StarRating"
+public let kCGImagePropertyIPTCStarRating: String = "StarRating"
 
 /// The scene codes for the image; a scene code is a six-digit string.
-public let kCGImagePropertyIPTCScene: CFString = "Scene"
+public let kCGImagePropertyIPTCScene: String = "Scene"
 
 // MARK: - Copyright
 
 /// The copyright notice.
-public let kCGImagePropertyIPTCCopyrightNotice: CFString = "CopyrightNotice"
+public let kCGImagePropertyIPTCCopyrightNotice: String = "CopyrightNotice"
 
 /// The usage rights for the image.
-public let kCGImagePropertyIPTCRightsUsageTerms: CFString = "RightsUsageTerms"
+public let kCGImagePropertyIPTCRightsUsageTerms: String = "RightsUsageTerms"
 
 // MARK: - Release Information
 
 /// The earliest day on which you can use the image, in the form CCYYMMDD.
-public let kCGImagePropertyIPTCReleaseDate: CFString = "ReleaseDate"
+public let kCGImagePropertyIPTCReleaseDate: String = "ReleaseDate"
 
 /// The earliest time at which you can use the image, in the form HHMMSS.
-public let kCGImagePropertyIPTCReleaseTime: CFString = "ReleaseTime"
+public let kCGImagePropertyIPTCReleaseTime: String = "ReleaseTime"
 
 /// The latest date you can use the image, in the form CCYYMMDD.
-public let kCGImagePropertyIPTCExpirationDate: CFString = "ExpirationDate"
+public let kCGImagePropertyIPTCExpirationDate: String = "ExpirationDate"
 
 /// The latest time on the expiration date you can use the image, in the form HHMMSS.
-public let kCGImagePropertyIPTCExpirationTime: CFString = "ExpirationTime"
+public let kCGImagePropertyIPTCExpirationTime: String = "ExpirationTime"
 
 /// Special instructions about the use of the image.
-public let kCGImagePropertyIPTCSpecialInstructions: CFString = "SpecialInstructions"
+public let kCGImagePropertyIPTCSpecialInstructions: String = "SpecialInstructions"
 
 /// The advised action.
-public let kCGImagePropertyIPTCActionAdvised: CFString = "ActionAdvised"
+public let kCGImagePropertyIPTCActionAdvised: String = "ActionAdvised"
 
 /// The reference service.
-public let kCGImagePropertyIPTCReferenceService: CFString = "ReferenceService"
+public let kCGImagePropertyIPTCReferenceService: String = "ReferenceService"
 
 /// The reference date.
-public let kCGImagePropertyIPTCReferenceDate: CFString = "ReferenceDate"
+public let kCGImagePropertyIPTCReferenceDate: String = "ReferenceDate"
 
 /// The reference number.
-public let kCGImagePropertyIPTCReferenceNumber: CFString = "ReferenceNumber"
+public let kCGImagePropertyIPTCReferenceNumber: String = "ReferenceNumber"
 
 /// The creation date.
-public let kCGImagePropertyIPTCDateCreated: CFString = "DateCreated"
+public let kCGImagePropertyIPTCDateCreated: String = "DateCreated"
 
 /// The creation time.
-public let kCGImagePropertyIPTCTimeCreated: CFString = "TimeCreated"
+public let kCGImagePropertyIPTCTimeCreated: String = "TimeCreated"
 
 /// The digital creation date.
-public let kCGImagePropertyIPTCDigitalCreationDate: CFString = "DigitalCreationDate"
+public let kCGImagePropertyIPTCDigitalCreationDate: String = "DigitalCreationDate"
 
 /// The digital creation time.
-public let kCGImagePropertyIPTCDigitalCreationTime: CFString = "DigitalCreationTime"
+public let kCGImagePropertyIPTCDigitalCreationTime: String = "DigitalCreationTime"
 
 // MARK: - Personnel
 
 /// The name of the person who created the image.
-public let kCGImagePropertyIPTCByline: CFString = "Byline"
+public let kCGImagePropertyIPTCByline: String = "Byline"
 
 /// The title of the person who created the image.
-public let kCGImagePropertyIPTCBylineTitle: CFString = "BylineTitle"
+public let kCGImagePropertyIPTCBylineTitle: String = "BylineTitle"
 
 /// The original owner of the image.
-public let kCGImagePropertyIPTCSource: CFString = "Source"
+public let kCGImagePropertyIPTCSource: String = "Source"
 
 /// The contact information for getting details about the image.
-public let kCGImagePropertyIPTCContact: CFString = "Contact"
+public let kCGImagePropertyIPTCContact: String = "Contact"
 
 /// The name of the person who wrote or edited the description of the image.
-public let kCGImagePropertyIPTCWriterEditor: CFString = "WriterEditor"
+public let kCGImagePropertyIPTCWriterEditor: String = "WriterEditor"
 
 /// The creator's contact info.
-public let kCGImagePropertyIPTCCreatorContactInfo: CFString = "CreatorContactInfo"
+public let kCGImagePropertyIPTCCreatorContactInfo: String = "CreatorContactInfo"
 
 // MARK: - Location Data
 
 /// The city where the image was created.
-public let kCGImagePropertyIPTCCity: CFString = "City"
+public let kCGImagePropertyIPTCCity: String = "City"
 
 /// The location within the city where the image was created.
-public let kCGImagePropertyIPTCSubLocation: CFString = "SubLocation"
+public let kCGImagePropertyIPTCSubLocation: String = "SubLocation"
 
 /// The province or state.
-public let kCGImagePropertyIPTCProvinceState: CFString = "ProvinceState"
+public let kCGImagePropertyIPTCProvinceState: String = "ProvinceState"
 
 /// The primary country code, a three-letter code defined by ISO 3166-1.
-public let kCGImagePropertyIPTCCountryPrimaryLocationCode: CFString = "CountryPrimaryLocationCode"
+public let kCGImagePropertyIPTCCountryPrimaryLocationCode: String = "CountryPrimaryLocationCode"
 
 /// The primary country name.
-public let kCGImagePropertyIPTCCountryPrimaryLocationName: CFString = "CountryPrimaryLocationName"
+public let kCGImagePropertyIPTCCountryPrimaryLocationName: String = "CountryPrimaryLocationName"
 
 /// The call letter or number combination associated with the originating point of an image.
-public let kCGImagePropertyIPTCOriginalTransmissionReference: CFString = "OriginalTransmissionReference"
+public let kCGImagePropertyIPTCOriginalTransmissionReference: String = "OriginalTransmissionReference"
 
 // MARK: - Software Program
 
 /// The originating application.
-public let kCGImagePropertyIPTCOriginatingProgram: CFString = "OriginatingProgram"
+public let kCGImagePropertyIPTCOriginatingProgram: String = "OriginatingProgram"
 
 /// The application version.
-public let kCGImagePropertyIPTCProgramVersion: CFString = "ProgramVersion"
+public let kCGImagePropertyIPTCProgramVersion: String = "ProgramVersion"
 
 // MARK: - Object Details
 
 /// The object type.
-public let kCGImagePropertyIPTCObjectTypeReference: CFString = "ObjectTypeReference"
+public let kCGImagePropertyIPTCObjectTypeReference: String = "ObjectTypeReference"
 
 /// The object attribute.
-public let kCGImagePropertyIPTCObjectAttributeReference: CFString = "ObjectAttributeReference"
+public let kCGImagePropertyIPTCObjectAttributeReference: String = "ObjectAttributeReference"
 
 /// The object name.
-public let kCGImagePropertyIPTCObjectName: CFString = "ObjectName"
+public let kCGImagePropertyIPTCObjectName: String = "ObjectName"
 
 // MARK: - Creator Contact Info Dictionary Keys
 
 /// The contact city.
-public let kCGImagePropertyIPTCContactInfoCity: CFString = "CiAdrCity"
+public let kCGImagePropertyIPTCContactInfoCity: String = "CiAdrCity"
 
 /// The contact country.
-public let kCGImagePropertyIPTCContactInfoCountry: CFString = "CiAdrCtry"
+public let kCGImagePropertyIPTCContactInfoCountry: String = "CiAdrCtry"
 
 /// The contact address.
-public let kCGImagePropertyIPTCContactInfoAddress: CFString = "CiAdrExtadr"
+public let kCGImagePropertyIPTCContactInfoAddress: String = "CiAdrExtadr"
 
 /// The contact postal code.
-public let kCGImagePropertyIPTCContactInfoPostalCode: CFString = "CiAdrPcode"
+public let kCGImagePropertyIPTCContactInfoPostalCode: String = "CiAdrPcode"
 
 /// The contact region.
-public let kCGImagePropertyIPTCContactInfoStateProvince: CFString = "CiAdrRegion"
+public let kCGImagePropertyIPTCContactInfoStateProvince: String = "CiAdrRegion"
 
 /// The contact email.
-public let kCGImagePropertyIPTCContactInfoEmails: CFString = "CiEmailWork"
+public let kCGImagePropertyIPTCContactInfoEmails: String = "CiEmailWork"
 
 /// The contact phone.
-public let kCGImagePropertyIPTCContactInfoPhones: CFString = "CiTelWork"
+public let kCGImagePropertyIPTCContactInfoPhones: String = "CiTelWork"
 
 /// The contact website.
-public let kCGImagePropertyIPTCContactInfoWebURLs: CFString = "CiUrlWork"
+public let kCGImagePropertyIPTCContactInfoWebURLs: String = "CiUrlWork"

@@ -3,6 +3,8 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 
+@preconcurrency import Foundation
+
 /// An immutable type that contains information about a single piece of image metadata.
 public class CGImageMetadataTag: Hashable, Equatable {
 
@@ -45,8 +47,10 @@ public func CGImageMetadataTagCreate(
     _ type: CGImageMetadataType,
     _ value: Any
 ) -> CGImageMetadataTag? {
-    guard !name.isEmpty else { return nil }
-    guard !xmlns.isEmpty else { return nil }
+    let nameString = name as String
+    let xmlnsString = xmlns as String
+    guard !nameString.isEmpty else { return nil }
+    guard !xmlnsString.isEmpty else { return nil }
 
     return CGImageMetadataTag(
         namespace: xmlns as String,

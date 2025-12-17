@@ -12,11 +12,15 @@ let package = Package(
             targets: ["OpenImageIO"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/1amageek/OpenCoreGraphics.git", branch: "main"),
+    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "OpenImageIO"
+            name: "OpenImageIO",
+            dependencies: ["OpenCoreGraphics"]
         ),
         .testTarget(
             name: "OpenImageIOTests",

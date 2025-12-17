@@ -3,6 +3,8 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 
+@preconcurrency import Foundation
+
 /// Constants for errors that occur when getting or setting metadata information.
 public enum CGImageMetadataErrors: Int32, Sendable, Hashable, Equatable, RawRepresentable {
     /// An error that indicates an unknown condition occurred.
@@ -34,4 +36,4 @@ public enum CGImageMetadataErrors: Int32, Sendable, Hashable, Equatable, RawRepr
 }
 
 /// The domain for metadata-related errors that originate in the Image I/O framework.
-public let kCFErrorDomainCGImageMetadata: CFString = "com.apple.ImageIO.cgimagemetadata" as CFString
+public let kCFErrorDomainCGImageMetadata: String = "com.apple.ImageIO.cgimagemetadata"

@@ -3,6 +3,8 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 
+@preconcurrency import Foundation
+
 /// An immutable object that contains the XMP metadata associated with an image.
 public class CGImageMetadata: Hashable, Equatable {
 
@@ -54,7 +56,7 @@ public class CGMutableImageMetadata: CGImageMetadata {
 public func CGImageMetadataCreateFromXMPData(_ data: CFData) -> CGImageMetadata? {
     // Parse XMP data and create metadata tags
     // This is a simplified implementation
-    let xmpString = String(bytes: data.data, encoding: .utf8) ?? ""
+    let xmpString = String(data: data as Data, encoding: .utf8) ?? ""
 
     guard !xmpString.isEmpty else { return nil }
 
@@ -67,8 +69,8 @@ public func CGImageMetadataCreateFromXMPData(_ data: CFData) -> CGImageMetadata?
         let titleStart = xmpString.index(titleRange.upperBound, offsetBy: 0)
         let titleContent = String(xmpString[titleStart..<titleEndRange.lowerBound])
         if let tag = CGImageMetadataTagCreate(
-            kCGImageMetadataNamespaceDublinCore,
-            kCGImageMetadataPrefixDublinCore,
+            kCGImageMetadataNamespaceDublinCore as CFString,
+            kCGImageMetadataPrefixDublinCore as CFString,
             "title" as CFString,
             .string,
             titleContent
@@ -172,7 +174,7 @@ public func CGImageMetadataEnumerateTagsUsingBlock(
     _ options: CFDictionary?,
     _ block: CGImageMetadataTagBlock
 ) {
-    let recursive = options?[kCGImageMetadataEnumerateRecursively as String] as? Bool ?? false
+    let recursive = (options as? [String: Any])?[kCGImageMetadataEnumerateRecursively] as? Bool ?? false
     _ = recursive // Used in full implementation for nested tag enumeration
 
     for tag in metadata.tags {
@@ -184,7 +186,7 @@ public func CGImageMetadataEnumerateTagsUsingBlock(
 }
 
 /// An option to enumerate recursively through a set of metadata tags.
-public let kCGImageMetadataEnumerateRecursively: CFString = "kCGImageMetadataEnumerateRecursively"
+public let kCGImageMetadataEnumerateRecursively: String = "kCGImageMetadataEnumerateRecursively"
 
 // MARK: - CGImageMetadata XMP Functions
 
@@ -231,7 +233,7 @@ public func CGImageMetadataCreateXMPData(
     """
 
     guard let data = xmp.data(using: .utf8) else { return nil }
-    return CFData(bytes: Array(data))
+    return data as CFData
 }
 
 private func prefixForNamespace(_ namespace: String) -> String? {
@@ -280,6 +282,7 @@ public func CGImageMetadataRegisterNamespaceForPrefix(
 }
 
 /// Sets the value of the metadata tag at the specified path.
+@discardableResult
 public func CGImageMetadataSetValueWithPath(
     _ metadata: CGMutableImageMetadata,
     _ parent: CGImageMetadataTag?,
@@ -383,6 +386,7 @@ public func CGImageMetadataRemoveTagWithPath(
 }
 
 /// Sets a tag in a mutable metadata object.
+@discardableResult
 public func CGImageMetadataSetTagWithPath(
     _ metadata: CGMutableImageMetadata,
     _ parent: CGImageMetadataTag?,

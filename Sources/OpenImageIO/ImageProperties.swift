@@ -4,163 +4,166 @@
 // Full API compatibility with Apple's ImageIO framework
 // Properties that apply to the container in general, and not necessarily to an individual image in the container.
 
+@preconcurrency import Foundation
+import OpenCoreGraphics
+
 // MARK: - Dictionary
 
 /// A dictionary of properties related to the image's on-disk file.
-public let kCGImagePropertyFileContentsDictionary: CFString = "FileContents"
+public let kCGImagePropertyFileContentsDictionary: String = "FileContents"
 
 // MARK: - Container File Size
 
 /// The size of the image file in bytes, if known.
-public let kCGImagePropertyFileSize: CFString = "FileSize"
+public let kCGImagePropertyFileSize: String = "FileSize"
 
 // MARK: - Image Information
 
 /// The number of images in the file.
-public let kCGImagePropertyImageCount: CFString = "ImageCount"
+public let kCGImagePropertyImageCount: String = "ImageCount"
 
 /// A Boolean value that indicates whether the image contains indexed pixel samples.
-public let kCGImagePropertyIsIndexed: CFString = "IsIndexed"
+public let kCGImagePropertyIsIndexed: String = "IsIndexed"
 
 /// An array of dictionaries, each of which contains metadata for one of the images in the file.
-public let kCGImagePropertyImages: CFString = "Images"
+public let kCGImagePropertyImages: String = "Images"
 
 /// An array of dictionaries containing thumbnail images.
-public let kCGImagePropertyThumbnailImages: CFString = "ThumbnailImages"
+public let kCGImagePropertyThumbnailImages: String = "ThumbnailImages"
 
 /// The index of the primary image in the file.
-public let kCGImagePropertyPrimaryImage: CFString = "PrimaryImage"
+public let kCGImagePropertyPrimaryImage: String = "PrimaryImage"
 
 /// A Boolean value that indicates whether the image contains floating-point pixel samples.
-public let kCGImagePropertyIsFloat: CFString = "IsFloat"
+public let kCGImagePropertyIsFloat: String = "IsFloat"
 
 /// The intended display orientation of the image.
-public let kCGImagePropertyOrientation: CFString = "Orientation"
+public let kCGImagePropertyOrientation: String = "Orientation"
 
 // MARK: - Pixel Information
 
 /// The format of the image's individual pixels.
-public let kCGImagePropertyPixelFormat: CFString = "PixelFormat"
+public let kCGImagePropertyPixelFormat: String = "PixelFormat"
 
 /// The number of pixels along the x-axis of the image.
-public let kCGImagePropertyPixelWidth: CFString = "PixelWidth"
+public let kCGImagePropertyPixelWidth: String = "PixelWidth"
 
 /// The number of pixels along the y-axis of the image.
-public let kCGImagePropertyPixelHeight: CFString = "PixelHeight"
+public let kCGImagePropertyPixelHeight: String = "PixelHeight"
 
 /// The resolution, in dots per inch, in the y dimension.
-public let kCGImagePropertyDPIHeight: CFString = "DPIHeight"
+public let kCGImagePropertyDPIHeight: String = "DPIHeight"
 
 /// The resolution, in dots per inch, in the x dimension.
-public let kCGImagePropertyDPIWidth: CFString = "DPIWidth"
+public let kCGImagePropertyDPIWidth: String = "DPIWidth"
 
 /// The number of bits in the color sample of a pixel.
-public let kCGImagePropertyDepth: CFString = "Depth"
+public let kCGImagePropertyDepth: String = "Depth"
 
 // MARK: - Color Information
 
 /// A Boolean value that indicates whether the image has an alpha channel.
-public let kCGImagePropertyHasAlpha: CFString = "HasAlpha"
+public let kCGImagePropertyHasAlpha: String = "HasAlpha"
 
 /// The name of the image's color space.
-public let kCGImagePropertyNamedColorSpace: CFString = "NamedColorSpace"
+public let kCGImagePropertyNamedColorSpace: String = "NamedColorSpace"
 
 /// The name of the optional International Color Consortium (ICC) profile embedded in the image, if known.
-public let kCGImagePropertyProfileName: CFString = "ProfileName"
+public let kCGImagePropertyProfileName: String = "ProfileName"
 
 /// The color model of the image, such as RGB, CMYK, grayscale, or Lab.
-public let kCGImagePropertyColorModel: CFString = "ColorModel"
+public let kCGImagePropertyColorModel: String = "ColorModel"
 
 /// A Red Green Blue (RGB) color model.
-public let kCGImagePropertyColorModelRGB: CFString = "RGB"
+public let kCGImagePropertyColorModelRGB: String = "RGB"
 
 /// A Cyan Magenta Yellow Black (CMYK) color model.
-public let kCGImagePropertyColorModelCMYK: CFString = "CMYK"
+public let kCGImagePropertyColorModelCMYK: String = "CMYK"
 
 /// A grayscale color model.
-public let kCGImagePropertyColorModelGray: CFString = "Gray"
+public let kCGImagePropertyColorModelGray: String = "Gray"
 
 /// A Lab color model, where color values contain the amount of light and the amounts of four human-perceivable colors.
-public let kCGImagePropertyColorModelLab: CFString = "Lab"
+public let kCGImagePropertyColorModelLab: String = "Lab"
 
 // MARK: - Individual Image Properties
 
 /// The height of the image, in the image's coordinate space.
-public let kCGImagePropertyHeight: CFString = "Height"
+public let kCGImagePropertyHeight: String = "Height"
 
 /// The width of the image, in the image's coordinate space.
-public let kCGImagePropertyWidth: CFString = "Width"
+public let kCGImagePropertyWidth: String = "Width"
 
 /// The total number of bytes in each row of the image.
-public let kCGImagePropertyBytesPerRow: CFString = "BytesPerRow"
+public let kCGImagePropertyBytesPerRow: String = "BytesPerRow"
 
 // MARK: - Auxiliary Data Types
 
 /// The type for depth map information.
-public let kCGImageAuxiliaryDataTypeDepth: CFString = "kCGImageAuxiliaryDataTypeDepth"
+public let kCGImageAuxiliaryDataTypeDepth: String = "kCGImageAuxiliaryDataTypeDepth"
 
 /// The type for image disparity information.
-public let kCGImageAuxiliaryDataTypeDisparity: CFString = "kCGImageAuxiliaryDataTypeDisparity"
+public let kCGImageAuxiliaryDataTypeDisparity: String = "kCGImageAuxiliaryDataTypeDisparity"
 
 /// The type for High Dynamic Range (HDR) gain map information.
-public let kCGImageAuxiliaryDataTypeHDRGainMap: CFString = "kCGImageAuxiliaryDataTypeHDRGainMap"
+public let kCGImageAuxiliaryDataTypeHDRGainMap: String = "kCGImageAuxiliaryDataTypeHDRGainMap"
 
 /// The type for portrait effects matte information.
-public let kCGImageAuxiliaryDataTypePortraitEffectsMatte: CFString = "kCGImageAuxiliaryDataTypePortraitEffectsMatte"
+public let kCGImageAuxiliaryDataTypePortraitEffectsMatte: String = "kCGImageAuxiliaryDataTypePortraitEffectsMatte"
 
 /// The type for glasses matte information.
-public let kCGImageAuxiliaryDataTypeSemanticSegmentationGlassesMatte: CFString = "kCGImageAuxiliaryDataTypeSemanticSegmentationGlassesMatte"
+public let kCGImageAuxiliaryDataTypeSemanticSegmentationGlassesMatte: String = "kCGImageAuxiliaryDataTypeSemanticSegmentationGlassesMatte"
 
 /// The type for hair matte information.
-public let kCGImageAuxiliaryDataTypeSemanticSegmentationHairMatte: CFString = "kCGImageAuxiliaryDataTypeSemanticSegmentationHairMatte"
+public let kCGImageAuxiliaryDataTypeSemanticSegmentationHairMatte: String = "kCGImageAuxiliaryDataTypeSemanticSegmentationHairMatte"
 
 /// The type for skin matte information.
-public let kCGImageAuxiliaryDataTypeSemanticSegmentationSkinMatte: CFString = "kCGImageAuxiliaryDataTypeSemanticSegmentationSkinMatte"
+public let kCGImageAuxiliaryDataTypeSemanticSegmentationSkinMatte: String = "kCGImageAuxiliaryDataTypeSemanticSegmentationSkinMatte"
 
 /// The type for sky matte information.
-public let kCGImageAuxiliaryDataTypeSemanticSegmentationSkyMatte: CFString = "kCGImageAuxiliaryDataTypeSemanticSegmentationSkyMatte"
+public let kCGImageAuxiliaryDataTypeSemanticSegmentationSkyMatte: String = "kCGImageAuxiliaryDataTypeSemanticSegmentationSkyMatte"
 
 /// The type for teeth matte information.
-public let kCGImageAuxiliaryDataTypeSemanticSegmentationTeethMatte: CFString = "kCGImageAuxiliaryDataTypeSemanticSegmentationTeethMatte"
+public let kCGImageAuxiliaryDataTypeSemanticSegmentationTeethMatte: String = "kCGImageAuxiliaryDataTypeSemanticSegmentationTeethMatte"
 
 // MARK: - Auxiliary Image Data
 
 /// An array of dictionaries that contain auxiliary data for the images.
-public let kCGImagePropertyAuxiliaryData: CFString = "AuxiliaryData"
+public let kCGImagePropertyAuxiliaryData: String = "AuxiliaryData"
 
 /// The type of the auxiliary data.
-public let kCGImagePropertyAuxiliaryDataType: CFString = "AuxiliaryDataType"
+public let kCGImagePropertyAuxiliaryDataType: String = "AuxiliaryDataType"
 
 /// The auxiliary data for the image.
-public let kCGImageAuxiliaryDataInfoData: CFString = "kCGImageAuxiliaryDataInfoData"
+public let kCGImageAuxiliaryDataInfoData: String = "kCGImageAuxiliaryDataInfoData"
 
 /// A dictionary of keys that describe the auxiliary data.
-public let kCGImageAuxiliaryDataInfoDataDescription: CFString = "kCGImageAuxiliaryDataInfoDataDescription"
+public let kCGImageAuxiliaryDataInfoDataDescription: String = "kCGImageAuxiliaryDataInfoDataDescription"
 
 /// The metadata for any auxiliary data.
-public let kCGImageAuxiliaryDataInfoMetadata: CFString = "kCGImageAuxiliaryDataInfoMetadata"
+public let kCGImageAuxiliaryDataInfoMetadata: String = "kCGImageAuxiliaryDataInfoMetadata"
 
 // MARK: - Open EXR Properties
 
 /// A dictionary of properties specific to the OpenEXR metadata standard.
-public let kCGImagePropertyOpenEXRDictionary: CFString = "OpenEXR"
+public let kCGImagePropertyOpenEXRDictionary: String = "OpenEXR"
 
 /// The aspect ratio of the image.
-public let kCGImagePropertyOpenEXRAspectRatio: CFString = "AspectRatio"
+public let kCGImagePropertyOpenEXRAspectRatio: String = "AspectRatio"
 
 /// The compression method for OpenEXR images.
-public let kCGImagePropertyOpenEXRCompression: CFString = "Compression"
+public let kCGImagePropertyOpenEXRCompression: String = "Compression"
 
 // MARK: - Animation Properties
 
 /// A property that specifies the index of the first frame of an animation.
-public let kCGImageAnimationStartIndex: CFString = "kCGImageAnimationStartIndex"
+public let kCGImageAnimationStartIndex: String = "kCGImageAnimationStartIndex"
 
 /// The number of seconds to wait before displaying the next image in an animated sequence.
-public let kCGImageAnimationDelayTime: CFString = "kCGImageAnimationDelayTime"
+public let kCGImageAnimationDelayTime: String = "kCGImageAnimationDelayTime"
 
 /// The number of times to repeat the animated sequence.
-public let kCGImageAnimationLoopCount: CFString = "kCGImageAnimationLoopCount"
+public let kCGImageAnimationLoopCount: String = "kCGImageAnimationLoopCount"
 
 // MARK: - Animation Status
 
@@ -243,82 +246,82 @@ public func CGAnimateImageDataWithBlock(
 // MARK: - HDR Properties
 
 /// Compute HDR statistics.
-public let kCGComputeHDRStats: CFString = "kCGComputeHDRStats"
+public let kCGComputeHDRStats: String = "kCGComputeHDRStats"
 
 // MARK: - Image Destination Encoding Properties
 
 /// Encode alternate color space.
-public let kCGImageDestinationEncodeAlternateColorSpace: CFString = "kCGImageDestinationEncodeAlternateColorSpace"
+public let kCGImageDestinationEncodeAlternateColorSpace: String = "kCGImageDestinationEncodeAlternateColorSpace"
 
 /// Encode base color space.
-public let kCGImageDestinationEncodeBaseColorSpace: CFString = "kCGImageDestinationEncodeBaseColorSpace"
+public let kCGImageDestinationEncodeBaseColorSpace: String = "kCGImageDestinationEncodeBaseColorSpace"
 
 /// Encode base is SDR.
-public let kCGImageDestinationEncodeBaseIsSDR: CFString = "kCGImageDestinationEncodeBaseIsSDR"
+public let kCGImageDestinationEncodeBaseIsSDR: String = "kCGImageDestinationEncodeBaseIsSDR"
 
 /// Encode base pixel format request.
-public let kCGImageDestinationEncodeBasePixelFormatRequest: CFString = "kCGImageDestinationEncodeBasePixelFormatRequest"
+public let kCGImageDestinationEncodeBasePixelFormatRequest: String = "kCGImageDestinationEncodeBasePixelFormatRequest"
 
 /// Encode gain map pixel format request.
-public let kCGImageDestinationEncodeGainMapPixelFormatRequest: CFString = "kCGImageDestinationEncodeGainMapPixelFormatRequest"
+public let kCGImageDestinationEncodeGainMapPixelFormatRequest: String = "kCGImageDestinationEncodeGainMapPixelFormatRequest"
 
 /// Encode gain map subsample factor.
-public let kCGImageDestinationEncodeGainMapSubsampleFactor: CFString = "kCGImageDestinationEncodeGainMapSubsampleFactor"
+public let kCGImageDestinationEncodeGainMapSubsampleFactor: String = "kCGImageDestinationEncodeGainMapSubsampleFactor"
 
 /// Encode generate gain map with base image.
-public let kCGImageDestinationEncodeGenerateGainMapWithBaseImage: CFString = "kCGImageDestinationEncodeGenerateGainMapWithBaseImage"
+public let kCGImageDestinationEncodeGenerateGainMapWithBaseImage: String = "kCGImageDestinationEncodeGenerateGainMapWithBaseImage"
 
 /// Encode is base image.
-public let kCGImageDestinationEncodeIsBaseImage: CFString = "kCGImageDestinationEncodeIsBaseImage"
+public let kCGImageDestinationEncodeIsBaseImage: String = "kCGImageDestinationEncodeIsBaseImage"
 
 /// Encode request.
-public let kCGImageDestinationEncodeRequest: CFString = "kCGImageDestinationEncodeRequest"
+public let kCGImageDestinationEncodeRequest: String = "kCGImageDestinationEncodeRequest"
 
 /// Encode request options.
-public let kCGImageDestinationEncodeRequestOptions: CFString = "kCGImageDestinationEncodeRequestOptions"
+public let kCGImageDestinationEncodeRequestOptions: String = "kCGImageDestinationEncodeRequestOptions"
 
 /// Encode to ISO gain map.
-public let kCGImageDestinationEncodeToISOGainmap: CFString = "kCGImageDestinationEncodeToISOGainmap"
+public let kCGImageDestinationEncodeToISOGainmap: String = "kCGImageDestinationEncodeToISOGainmap"
 
 /// Encode to ISO HDR.
-public let kCGImageDestinationEncodeToISOHDR: CFString = "kCGImageDestinationEncodeToISOHDR"
+public let kCGImageDestinationEncodeToISOHDR: String = "kCGImageDestinationEncodeToISOHDR"
 
 /// Encode to SDR.
-public let kCGImageDestinationEncodeToSDR: CFString = "kCGImageDestinationEncodeToSDR"
+public let kCGImageDestinationEncodeToSDR: String = "kCGImageDestinationEncodeToSDR"
 
 /// Encode tonemap mode.
-public let kCGImageDestinationEncodeTonemapMode: CFString = "kCGImageDestinationEncodeTonemapMode"
+public let kCGImageDestinationEncodeTonemapMode: String = "kCGImageDestinationEncodeTonemapMode"
 
 // MARK: - Texture Properties
 
 /// ASTC block size.
-public let kCGImagePropertyASTCBlockSize: CFString = "kCGImagePropertyASTCBlockSize"
+public let kCGImagePropertyASTCBlockSize: String = "kCGImagePropertyASTCBlockSize"
 
 /// ASTC block size 4x4.
-public let kCGImagePropertyASTCBlockSize4x4: CFString = "kCGImagePropertyASTCBlockSize4x4"
+public let kCGImagePropertyASTCBlockSize4x4: String = "kCGImagePropertyASTCBlockSize4x4"
 
 /// ASTC block size 8x8.
-public let kCGImagePropertyASTCBlockSize8x8: CFString = "kCGImagePropertyASTCBlockSize8x8"
+public let kCGImagePropertyASTCBlockSize8x8: String = "kCGImagePropertyASTCBlockSize8x8"
 
 /// ASTC encoder.
-public let kCGImagePropertyASTCEncoder: CFString = "kCGImagePropertyASTCEncoder"
+public let kCGImagePropertyASTCEncoder: String = "kCGImagePropertyASTCEncoder"
 
 /// BC encoder.
-public let kCGImagePropertyBCEncoder: CFString = "kCGImagePropertyBCEncoder"
+public let kCGImagePropertyBCEncoder: String = "kCGImagePropertyBCEncoder"
 
 /// BC format.
-public let kCGImagePropertyBCFormat: CFString = "kCGImagePropertyBCFormat"
+public let kCGImagePropertyBCFormat: String = "kCGImagePropertyBCFormat"
 
 /// Encoder.
-public let kCGImagePropertyEncoder: CFString = "kCGImagePropertyEncoder"
+public let kCGImagePropertyEncoder: String = "kCGImagePropertyEncoder"
 
 /// PVR encoder.
-public let kCGImagePropertyPVREncoder: CFString = "kCGImagePropertyPVREncoder"
+public let kCGImagePropertyPVREncoder: String = "kCGImagePropertyPVREncoder"
 
 // MARK: - Image Provider Properties
 
 /// Preferred tile height.
-public let kCGImageProviderPreferredTileHeight: CFString = "kCGImageProviderPreferredTileHeight"
+public let kCGImageProviderPreferredTileHeight: String = "kCGImageProviderPreferredTileHeight"
 
 /// Preferred tile width.
-public let kCGImageProviderPreferredTileWidth: CFString = "kCGImageProviderPreferredTileWidth"
+public let kCGImageProviderPreferredTileWidth: String = "kCGImageProviderPreferredTileWidth"

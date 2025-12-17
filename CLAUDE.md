@@ -2,20 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## ⚠️ CRITICAL REQUIREMENT: API Compatibility
 
-OpenImageIO is a Swift library that provides **full API compatibility with Apple's ImageIO framework** for WebAssembly (WASM) environments.
+**THIS IS THE MOST IMPORTANT REQUIREMENT. IT IS NON-NEGOTIABLE.**
 
-### Core Principle: Full Compatibility
+OpenImageIO MUST maintain **100% API compatibility with Apple's ImageIO framework**. This requirement takes absolute priority over all other considerations:
 
-**The API must be 100% compatible with ImageIO.** This means:
-- Identical type names, method signatures, and property names
-- Same behavior and semantics as ImageIO
-- Code written for ImageIO should compile and work without modification when using OpenImageIO
+- **Cost is not a constraint** - Spend as much effort as needed to achieve compatibility
+- **No shortcuts** - Do not simplify or deviate from ImageIO's API signatures
+- **Exact matching** - Every function signature, type name, and constant must match ImageIO exactly
 
-### How `canImport` Works
+### Why This Matters
 
-Users of this library will write code like:
+Users write code like this:
 
 ```swift
 #if canImport(ImageIO)
@@ -24,15 +23,45 @@ import ImageIO
 import OpenImageIO
 #endif
 
-// This code works in both environments
+// This code MUST compile and work identically in both cases
 let source = CGImageSourceCreateWithData(data as CFData, nil)
 let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 ```
 
+**If even one API signature differs, the user's code will fail to compile.**
+
+### Verification Process
+
+Before implementing ANY function:
+1. Check Apple's official ImageIO documentation
+2. Verify the EXACT function signature (parameter types, return type, parameter names)
+3. Match the behavior as closely as possible
+
+### API Signatures MUST Match ImageIO
+
+```swift
+// These signatures are from Apple's ImageIO - they MUST be identical
+
+// CGImageSource
+public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource?
+public func CGImageSourceCreateWithURL(_ url: CFURL, _ options: CFDictionary?) -> CGImageSource?
+public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage?
+public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CFDictionary?
+
+// CGImageDestination
+public func CGImageDestinationCreateWithData(_ data: CFMutableData, _ type: CFString, _ count: Int, _ options: CFDictionary?) -> CGImageDestination?
+public func CGImageDestinationAddImage(_ idst: CGImageDestination, _ image: CGImage, _ properties: CFDictionary?)
+public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool
+```
+
+---
+
+## Project Overview
+
+OpenImageIO is a Swift library that provides **full API compatibility with Apple's ImageIO framework** for WebAssembly (WASM) environments.
+
 - **When ImageIO is available** (iOS, macOS, etc.): Users import ImageIO directly
 - **When ImageIO is NOT available** (WASM): Users import OpenImageIO, which provides identical APIs
-
-This library exists so that cross-platform Swift code can use ImageIO APIs even in WASM environments where Apple's ImageIO is not available.
 
 ## Build Commands
 
@@ -52,71 +81,64 @@ swift build --triple wasm32-unknown-wasi
 
 ## Architecture
 
-### Implementation Approach
-
-This library provides standalone implementations of ImageIO types for WASM environments. Each type/function must exactly mirror the ImageIO API:
-
-```swift
-// Example: CGImageSource functions must match ImageIO exactly
-public func CGImageSourceCreateWithData(
-    _ data: CFData,
-    _ options: CFDictionary?
-) -> CGImageSource?
-
-public func CGImageSourceCreateImageAtIndex(
-    _ isrc: CGImageSource,
-    _ index: Int,
-    _ options: CFDictionary?
-) -> CGImage?
-```
-
-**Important**: Always refer to Apple's official ImageIO documentation to ensure API signatures match exactly.
-
-### Type Categories to Implement
-
-1. **Image Sources**: `CGImageSource` - Read and decode image data
-   - `CGImageSourceCreateWithData`, `CGImageSourceCreateWithURL`, `CGImageSourceCreateWithDataProvider`
-   - `CGImageSourceGetCount`, `CGImageSourceGetType`, `CGImageSourceGetTypeID`
-   - `CGImageSourceCreateImageAtIndex`, `CGImageSourceCreateThumbnailAtIndex`
-   - `CGImageSourceCopyProperties`, `CGImageSourceCopyPropertiesAtIndex`
-   - `CGImageSourceGetStatus`, `CGImageSourceGetStatusAtIndex`
-
-2. **Image Destinations**: `CGImageDestination` - Encode and write image data
-   - `CGImageDestinationCreateWithData`, `CGImageDestinationCreateWithURL`, `CGImageDestinationCreateWithDataConsumer`
-   - `CGImageDestinationAddImage`, `CGImageDestinationAddImageFromSource`
-   - `CGImageDestinationSetProperties`, `CGImageDestinationFinalize`
-   - `CGImageDestinationCopyTypeIdentifiers`, `CGImageDestinationGetTypeID`
-
-3. **Image Metadata**: Reading and writing EXIF, IPTC, XMP metadata
-   - `CGImageMetadataCreateMutable`, `CGImageMetadataCreateMutableCopy`
-   - `CGImageMetadataGetTypeID`, `CGImageMetadataCopyTags`
-   - `CGImageMetadataSetValueWithPath`, `CGImageMetadataCopyStringValueWithPath`
-
-4. **Image Properties Dictionary Keys**:
-   - `kCGImageSourceTypeIdentifierHint`
-   - `kCGImageSourceShouldCache`
-   - `kCGImageSourceShouldCacheImmediately`
-   - `kCGImageSourceCreateThumbnailFromImageIfAbsent`
-   - `kCGImageSourceCreateThumbnailFromImageAlways`
-   - `kCGImageSourceThumbnailMaxPixelSize`
-   - `kCGImageSourceCreateThumbnailWithTransform`
-   - `kCGImageDestinationLossyCompressionQuality`
-   - `kCGImageDestinationBackgroundColor`
-   - And all EXIF, IPTC, GPS, TIFF property keys
-
-5. **Supported Image Formats**:
-   - PNG, JPEG, GIF, BMP, TIFF (priority formats for WASM)
-   - WebP (if feasible)
-
 ### Dependencies
 
-This library will likely depend on:
-- **OpenCoreGraphics**: For `CGImage`, `CGDataProvider`, `CGDataConsumer`, `CFData`, etc.
-- Pure Swift image codec implementations or lightweight C libraries for actual encoding/decoding
+- **OpenCoreGraphics**: For `CGImage`, `CGDataProvider`, `CGDataConsumer`, `CGColorSpace`, etc.
+- **Foundation**: For CoreFoundation types (`CFData`, `CFString`, `CFDictionary`, etc.)
 
-### Protocol Conformances
+### CoreFoundation Types
 
-Reference types (`CGImageSource`, `CGImageDestination`, `CGImageMetadata`) should be classes that properly manage resources.
+CoreFoundation types (`CFData`, `CFString`, `CFDictionary`, `CFURL`, etc.) are available through `import Foundation`.
+
+**Use `@preconcurrency import Foundation` to avoid Swift 6 concurrency warnings with CF types.**
+
+```swift
+@preconcurrency import Foundation
+import OpenCoreGraphics
+
+// CF types from Foundation
+// CG types from OpenCoreGraphics
+```
+
+### Internal Implementation vs Public API
+
+**Public API** must use CF types to match ImageIO exactly:
+```swift
+// Public API - MUST match ImageIO signatures
+public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource?
+```
+
+**Internal implementation** can use Swift types for convenience, with conversions at the API boundary:
+```swift
+internal var imageData: Data  // Internal: Swift types
+internal var properties: [String: Any]  // Internal: Swift types
+
+// At API boundary: convert to CF types
+public func CGImageSourceCopyProperties(...) -> CFDictionary? {
+    return properties as CFDictionary
+}
+```
+
+### String Constants
+
+For ImageIO property key constants, use `String` type (bridges to `CFString` automatically):
+
+```swift
+public let kCGImagePropertyPixelWidth: String = "PixelWidth"
+public let kCGImagePropertyPixelHeight: String = "PixelHeight"
+```
+
+### Type Categories
+
+1. **Image Sources**: `CGImageSource` - Read and decode image data
+2. **Image Destinations**: `CGImageDestination` - Encode and write image data
+3. **Image Metadata**: `CGImageMetadata`, `CGImageMetadataTag` - XMP metadata handling
+4. **Property Keys**: All `kCGImageProperty*` constants
+
+### Supported Image Formats
+
+- PNG, JPEG, GIF, BMP, TIFF (priority formats)
+- WebP (if feasible)
 
 ### Implementation Policy
 
@@ -126,7 +148,7 @@ Reference types (`CGImageSource`, `CGImageDestination`, `CGImageMetadata`) shoul
 
 ## Testing
 
-Uses Swift Testing framework (not XCTest). Test syntax:
+Uses Swift Testing framework (not XCTest):
 
 ```swift
 import Testing
@@ -137,16 +159,5 @@ import Testing
     let source = CGImageSourceCreateWithData(pngData as CFData, nil)
     #expect(source != nil)
     #expect(CGImageSourceGetCount(source!) == 1)
-}
-
-@Test func testImageDestinationToJPEG() {
-    let data = NSMutableData()
-    let destination = CGImageDestinationCreateWithData(
-        data as CFMutableData,
-        "public.jpeg" as CFString,
-        1,
-        nil
-    )
-    #expect(destination != nil)
 }
 ```
