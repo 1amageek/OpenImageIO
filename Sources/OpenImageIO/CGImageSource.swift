@@ -22,9 +22,9 @@ public class CGImageSource: Hashable, Equatable {
 
     // MARK: - Initialization
 
-    internal init(data: Data, options: CFDictionary?, isIncremental: Bool = false) {
+    internal init(data: Data, options: [String: Any]?, isIncremental: Bool = false) {
         self.imageData = data
-        self.options = options as? [String: Any]
+        self.options = options
         self.isIncremental = isIncremental
 
         if !isIncremental && !data.isEmpty {
@@ -427,44 +427,44 @@ public class CGImageSource: Hashable, Equatable {
 // MARK: - CGImageSource Creation Functions
 
 /// Creates an image source that reads from a location specified by a URL.
-public func CGImageSourceCreateWithURL(_ url: CFURL, _ options: CFDictionary?) -> CGImageSource? {
+public func CGImageSourceCreateWithURL(_ url: URL, _ options: [String: Any]?) -> CGImageSource? {
     // Read file data
-    guard let data = try? Data(contentsOf: url as URL) else {
+    guard let data = try? Data(contentsOf: url) else {
         return nil
     }
     return CGImageSource(data: data, options: options)
 }
 
-/// Creates an image source that reads from a Core Foundation data object.
-public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource? {
-    return CGImageSource(data: data as Data, options: options)
+/// Creates an image source that reads from a Data object.
+public func CGImageSourceCreateWithData(_ data: Data, _ options: [String: Any]?) -> CGImageSource? {
+    return CGImageSource(data: data, options: options)
 }
 
 /// Creates an image source that reads data from the specified data provider.
-public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: CFDictionary?) -> CGImageSource? {
+public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: [String: Any]?) -> CGImageSource? {
     guard let data = provider.data else { return nil }
     return CGImageSource(data: data, options: options)
 }
 
 /// Creates an empty image source that you can use to accumulate incremental image data.
-public func CGImageSourceCreateIncremental(_ options: CFDictionary?) -> CGImageSource {
+public func CGImageSourceCreateIncremental(_ options: [String: Any]?) -> CGImageSource {
     return CGImageSource(data: Data(), options: options, isIncremental: true)
 }
 
 // MARK: - CGImageSource Information Functions
 
 /// Returns the unique type identifier of an image source opaque type.
-public func CGImageSourceGetTypeID() -> CFTypeID {
+public func CGImageSourceGetTypeID() -> UInt {
     return 0 // Placeholder - actual implementation would return unique ID
 }
 
 /// Returns the uniform type identifier of the source container.
-public func CGImageSourceGetType(_ isrc: CGImageSource) -> CFString? {
-    return isrc.sourceType as CFString?
+public func CGImageSourceGetType(_ isrc: CGImageSource) -> String? {
+    return isrc.sourceType
 }
 
 /// Returns an array of uniform type identifiers that are supported for image sources.
-public func CGImageSourceCopyTypeIdentifiers() -> CFArray {
+public func CGImageSourceCopyTypeIdentifiers() -> [String] {
     return [
         "public.png",
         "public.jpeg",
@@ -472,7 +472,7 @@ public func CGImageSourceCopyTypeIdentifiers() -> CFArray {
         "com.microsoft.bmp",
         "public.tiff",
         "org.webmproject.webp"
-    ] as CFArray
+    ]
 }
 
 /// Returns the number of images (not including thumbnails) in the image source.
@@ -481,20 +481,20 @@ public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int {
 }
 
 /// Returns the properties of the image source.
-public func CGImageSourceCopyProperties(_ isrc: CGImageSource, _ options: CFDictionary?) -> CFDictionary? {
-    return isrc.properties as CFDictionary
+public func CGImageSourceCopyProperties(_ isrc: CGImageSource, _ options: [String: Any]?) -> [String: Any]? {
+    return isrc.properties
 }
 
 /// Returns the properties of the image at a specified location in an image source.
-public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CFDictionary? {
+public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> [String: Any]? {
     guard index >= 0 && index < isrc.imageProperties.count else {
         return nil
     }
-    return isrc.imageProperties[index] as CFDictionary
+    return isrc.imageProperties[index]
 }
 
 /// Returns auxiliary data, such as mattes and depth information, that accompany the image.
-public func CGImageSourceCopyAuxiliaryDataInfoAtIndex(_ isrc: CGImageSource, _ index: Int, _ auxiliaryImageDataType: CFString) -> CFDictionary? {
+public func CGImageSourceCopyAuxiliaryDataInfoAtIndex(_ isrc: CGImageSource, _ index: Int, _ auxiliaryImageDataType: String) -> [String: Any]? {
     // Placeholder - auxiliary data parsing not implemented
     return nil
 }
@@ -502,33 +502,88 @@ public func CGImageSourceCopyAuxiliaryDataInfoAtIndex(_ isrc: CGImageSource, _ i
 // MARK: - CGImageSource Image Extraction Functions
 
 /// Creates an image object from the data at the specified index in an image source.
-public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage? {
+public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> CGImage? {
     guard index >= 0 && index < isrc.imageCount else {
         return nil
     }
 
-    // Placeholder implementation - actual decoding would be needed
-    guard index < isrc.imageProperties.count else {
+    // Decode based on image type
+    guard let sourceType = isrc.sourceType else {
         return nil
     }
 
-    let props = isrc.imageProperties[index]
-    guard let width = props[kCGImagePropertyPixelWidth] as? Int,
-          let height = props[kCGImagePropertyPixelHeight] as? Int else {
+    var pixelData: Data?
+    var width = 0
+    var height = 0
+    var hasAlpha = false
+
+    switch sourceType {
+    case "public.png":
+        if let result = PNGDecoder.decode(data: isrc.imageData) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = result.hasAlpha
+        }
+
+    case "public.jpeg":
+        if let result = JPEGDecoder.decode(data: isrc.imageData) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = false
+        }
+
+    case "com.compuserve.gif":
+        if let result = GIFDecoder.decode(data: isrc.imageData, frameIndex: index) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = result.hasAlpha
+        }
+
+    case "com.microsoft.bmp":
+        if let result = BMPDecoder.decode(data: isrc.imageData) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = result.hasAlpha
+        }
+
+    case "public.tiff":
+        if let result = TIFFDecoder.decode(data: isrc.imageData) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = result.hasAlpha
+        }
+
+    case "org.webmproject.webp":
+        if let result = WebPDecoder.decode(data: isrc.imageData) {
+            pixelData = result.pixels
+            width = result.width
+            height = result.height
+            hasAlpha = result.hasAlpha
+        }
+
+    default:
+        // Unsupported format - return nil
         return nil
     }
 
-    // Create empty image data
-    let bytesPerRow = width * 4
-    let totalBytes = bytesPerRow * height
-    let pixelData = Data(count: totalBytes)
+    guard let pixels = pixelData, width > 0, height > 0 else {
+        return nil
+    }
 
     // Create CGImage using OpenCoreGraphics
     guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
         return nil
     }
 
-    let provider = CGDataProvider(data: pixelData)
+    let bytesPerRow = width * 4
+    let provider = CGDataProvider(data: pixels)
+
+    let alphaInfo: CGImageAlphaInfo = hasAlpha ? .premultipliedLast : .noneSkipLast
 
     return CGImage(
         width: width,
@@ -537,7 +592,7 @@ public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int,
         bitsPerPixel: 32,
         bytesPerRow: bytesPerRow,
         space: colorSpace,
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+        bitmapInfo: CGBitmapInfo(rawValue: alphaInfo.rawValue),
         provider: provider,
         decode: nil,
         shouldInterpolate: true,
@@ -546,27 +601,20 @@ public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int,
 }
 
 /// Creates a thumbnail version of the image at the specified index in an image source.
-public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage? {
-    guard index >= 0 && index < isrc.imageCount else {
+public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> CGImage? {
+    // First decode the full image
+    guard let fullImage = CGImageSourceCreateImageAtIndex(isrc, index, nil) else {
         return nil
     }
 
-    // Get original dimensions
-    guard index < isrc.imageProperties.count else {
-        return nil
-    }
-
-    let props = isrc.imageProperties[index]
-    guard let width = props[kCGImagePropertyPixelWidth] as? Int,
-          let height = props[kCGImagePropertyPixelHeight] as? Int else {
-        return nil
-    }
+    let width = fullImage.width
+    let height = fullImage.height
 
     // Calculate thumbnail dimensions
     var thumbWidth = width
     var thumbHeight = height
 
-    if let opts = options as? [String: Any],
+    if let opts = options,
        let maxPixelSize = opts[kCGImageSourceThumbnailMaxPixelSize] as? Int {
         let scale = min(Double(maxPixelSize) / Double(width), Double(maxPixelSize) / Double(height))
         if scale < 1.0 {
@@ -575,16 +623,44 @@ public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: 
         }
     }
 
-    // Create thumbnail (placeholder)
-    let bytesPerRow = thumbWidth * 4
-    let totalBytes = bytesPerRow * thumbHeight
-    let pixelData = Data(count: totalBytes)
+    // If no scaling needed, return the original
+    if thumbWidth == width && thumbHeight == height {
+        return fullImage
+    }
+
+    // Create scaled thumbnail using simple bilinear interpolation
+    guard let srcData = fullImage.dataProvider?.data else {
+        return nil
+    }
+
+    var thumbPixels = [UInt8](repeating: 0, count: thumbWidth * thumbHeight * 4)
+
+    let xRatio = Double(width) / Double(thumbWidth)
+    let yRatio = Double(height) / Double(thumbHeight)
+
+    for y in 0..<thumbHeight {
+        for x in 0..<thumbWidth {
+            let srcX = Int(Double(x) * xRatio)
+            let srcY = Int(Double(y) * yRatio)
+
+            let srcIndex = (srcY * width + srcX) * 4
+            let dstIndex = (y * thumbWidth + x) * 4
+
+            if srcIndex + 3 < srcData.count {
+                thumbPixels[dstIndex] = srcData[srcIndex]
+                thumbPixels[dstIndex + 1] = srcData[srcIndex + 1]
+                thumbPixels[dstIndex + 2] = srcData[srcIndex + 2]
+                thumbPixels[dstIndex + 3] = srcData[srcIndex + 3]
+            }
+        }
+    }
 
     guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
         return nil
     }
 
-    let provider = CGDataProvider(data: pixelData)
+    let bytesPerRow = thumbWidth * 4
+    let provider = CGDataProvider(data: Data(thumbPixels))
 
     return CGImage(
         width: thumbWidth,
@@ -593,7 +669,7 @@ public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: 
         bitsPerPixel: 32,
         bytesPerRow: bytesPerRow,
         space: colorSpace,
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+        bitmapInfo: fullImage.bitmapInfo,
         provider: provider,
         decode: nil,
         shouldInterpolate: true,
@@ -624,8 +700,8 @@ public func CGImageSourceGetStatusAtIndex(_ isrc: CGImageSource, _ index: Int) -
 // MARK: - CGImageSource Incremental Functions
 
 /// Updates the data in an incremental image source.
-public func CGImageSourceUpdateData(_ isrc: CGImageSource, _ data: CFData, _ final: Bool) {
-    isrc.imageData = data as Data
+public func CGImageSourceUpdateData(_ isrc: CGImageSource, _ data: Data, _ final: Bool) {
+    isrc.imageData = data
     if final {
         isrc.parseImageData()
     } else {

@@ -4,7 +4,9 @@
 // Comprehensive tests for CGImageSource functionality
 
 import Testing
+import Foundation
 @testable import OpenImageIO
+import OpenCoreGraphics
 
 // MARK: - CGImageSource Creation Tests
 
@@ -13,7 +15,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid PNG data")
     func createWithValidPNGData() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -23,7 +25,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid JPEG data")
     func createWithValidJPEGData() {
-        let data = CFData(bytes: TestData.minimalJPEG)
+        let data = TestData.minimalJPEG
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -33,7 +35,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid GIF data")
     func createWithValidGIFData() {
-        let data = CFData(bytes: TestData.minimalGIF)
+        let data = TestData.minimalGIF
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -43,7 +45,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid BMP data")
     func createWithValidBMPData() {
-        let data = CFData(bytes: TestData.minimalBMP)
+        let data = TestData.minimalBMP
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -53,7 +55,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid TIFF data")
     func createWithValidTIFFData() {
-        let data = CFData(bytes: TestData.minimalTIFF)
+        let data = TestData.minimalTIFF
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -63,7 +65,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from valid WebP data")
     func createWithValidWebPData() {
-        let data = CFData(bytes: TestData.minimalWebP)
+        let data = TestData.minimalWebP
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -73,7 +75,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from empty data returns incomplete status")
     func createWithEmptyData() {
-        let data = CFData(bytes: TestData.emptyData)
+        let data = TestData.emptyData
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -83,7 +85,7 @@ struct CGImageSourceCreationTests {
 
     @Test("Create source from invalid data returns unknown type status")
     func createWithInvalidData() {
-        let data = CFData(bytes: TestData.invalidData)
+        let data = TestData.invalidData
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
@@ -116,7 +118,7 @@ struct CGImageSourceInformationTests {
 
     @Test("Get image count for single image")
     func getCountSingleImage() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetCount(source) == 1)
@@ -124,7 +126,7 @@ struct CGImageSourceInformationTests {
 
     @Test("Get image count for animated GIF")
     func getCountAnimatedGIF() {
-        let data = CFData(bytes: TestData.animatedGIF(frameCount: 3, width: 10, height: 10))
+        let data = TestData.animatedGIF(frameCount: 3, width: 10, height: 10)
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetCount(source) == 3)
@@ -135,27 +137,27 @@ struct CGImageSourceInformationTests {
         let identifiers = CGImageSourceCopyTypeIdentifiers()
 
         #expect(identifiers.count >= 5)
-        #expect((identifiers as! [String]).contains("public.png"))
-        #expect((identifiers as! [String]).contains("public.jpeg"))
-        #expect((identifiers as! [String]).contains("com.compuserve.gif"))
-        #expect((identifiers as! [String]).contains("com.microsoft.bmp"))
-        #expect((identifiers as! [String]).contains("public.tiff"))
+        #expect(identifiers.contains("public.png"))
+        #expect(identifiers.contains("public.jpeg"))
+        #expect(identifiers.contains("com.compuserve.gif"))
+        #expect(identifiers.contains("com.microsoft.bmp"))
+        #expect(identifiers.contains("public.tiff"))
     }
 
     @Test("Get properties from PNG")
     func getPropertiesPNG() {
-        let data = CFData(bytes: TestData.pngWithDimensions(width: 100, height: 50))
+        let data = TestData.pngWithDimensions(width: 100, height: 50)
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let props = CGImageSourceCopyProperties(source, nil)
         #expect(props != nil)
-        #expect(props![kCGImagePropertyPixelWidth as String] as? Int == 100)
-        #expect(props![kCGImagePropertyPixelHeight as String] as? Int == 50)
+        #expect(props![kCGImagePropertyPixelWidth] as? Int == 100)
+        #expect(props![kCGImagePropertyPixelHeight] as? Int == 50)
     }
 
     @Test("Get properties at index")
     func getPropertiesAtIndex() {
-        let data = CFData(bytes: TestData.minimalJPEG)
+        let data = TestData.minimalJPEG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
@@ -167,7 +169,7 @@ struct CGImageSourceInformationTests {
 
     @Test("Get properties at negative index returns nil")
     func getPropertiesAtNegativeIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let props = CGImageSourceCopyPropertiesAtIndex(source, -1, nil)
@@ -176,18 +178,21 @@ struct CGImageSourceInformationTests {
 
     @Test("Get primary image index")
     func getPrimaryImageIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let index = CGImageSourceGetPrimaryImageIndex(source)
         #expect(index == 0)
     }
 
-    @Test("Get type ID")
+    @Test("Get type ID returns consistent value")
     func getTypeID() {
-        let typeID = CGImageSourceGetTypeID()
-        // Just verify it returns a value
-        #expect(typeID >= 0)
+        let typeID1 = CGImageSourceGetTypeID()
+        let typeID2 = CGImageSourceGetTypeID()
+
+        // Verify it returns a consistent value
+        #expect(typeID1 == typeID2)
+        #expect(typeID1 >= 0)
     }
 }
 
@@ -198,7 +203,7 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create image at valid index")
     func createImageAtValidIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -209,7 +214,7 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create image at invalid index returns nil")
     func createImageAtInvalidIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let image = CGImageSourceCreateImageAtIndex(source, 99, nil)
@@ -218,7 +223,7 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create image at negative index returns nil")
     func createImageAtNegativeIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let image = CGImageSourceCreateImageAtIndex(source, -1, nil)
@@ -227,11 +232,11 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create thumbnail at valid index")
     func createThumbnailAtValidIndex() {
-        let data = CFData(bytes: TestData.pngWithDimensions(width: 100, height: 100))
+        let data = TestData.pngWithDimensions(width: 100, height: 100)
         let source = CGImageSourceCreateWithData(data, nil)!
 
-        let options: CFDictionary = [
-            kCGImageSourceThumbnailMaxPixelSize as String: 50
+        let options: [String: Any] = [
+            kCGImageSourceThumbnailMaxPixelSize: 50
         ]
         let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
 
@@ -242,7 +247,7 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create thumbnail at invalid index returns nil")
     func createThumbnailAtInvalidIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 99, nil)
@@ -251,7 +256,7 @@ struct CGImageSourceImageExtractionTests {
 
     @Test("Create thumbnail without max size")
     func createThumbnailWithoutMaxSize() {
-        let data = CFData(bytes: TestData.pngWithDimensions(width: 200, height: 100))
+        let data = TestData.pngWithDimensions(width: 200, height: 100)
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, nil)
@@ -269,7 +274,7 @@ struct CGImageSourceStatusTests {
 
     @Test("Get status for complete source")
     func getStatusComplete() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatus(source) == .statusComplete)
@@ -284,7 +289,7 @@ struct CGImageSourceStatusTests {
 
     @Test("Get status for empty data is incomplete")
     func getStatusEmpty() {
-        let data = CFData(bytes: TestData.emptyData)
+        let data = TestData.emptyData
         let source = CGImageSourceCreateWithData(data, nil)!
 
         // Empty data is not parsed, so status remains incomplete
@@ -294,7 +299,7 @@ struct CGImageSourceStatusTests {
     @Test("Get status for truncated data is invalid")
     func getStatusTruncated() {
         // Data that is too short to be any valid format
-        let data = CFData(bytes: [0x00, 0x01, 0x02, 0x03])
+        let data = Data([0x00, 0x01, 0x02, 0x03])
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
@@ -302,7 +307,7 @@ struct CGImageSourceStatusTests {
 
     @Test("Get status for unknown type")
     func getStatusUnknownType() {
-        let data = CFData(bytes: TestData.invalidData)
+        let data = TestData.invalidData
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatus(source) == .statusUnknownType)
@@ -310,7 +315,7 @@ struct CGImageSourceStatusTests {
 
     @Test("Get status at valid index")
     func getStatusAtValidIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatusAtIndex(source, 0) == .statusComplete)
@@ -318,7 +323,7 @@ struct CGImageSourceStatusTests {
 
     @Test("Get status at invalid index")
     func getStatusAtInvalidIndex() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatusAtIndex(source, 99) == .statusInvalidData)
@@ -339,13 +344,12 @@ struct CGImageSourceIncrementalTests {
         #expect(CGImageSourceGetCount(source) == 0)
 
         // Update with partial data
-        let partialData = CFData(bytes: Array(TestData.minimalPNG.prefix(10)))
+        let partialData = Data(Array(TestData.minimalPNG.prefix(10)))
         CGImageSourceUpdateData(source, partialData, false)
         #expect(CGImageSourceGetStatus(source) == .statusIncomplete)
 
         // Update with complete data
-        let completeData = CFData(bytes: TestData.minimalPNG)
-        CGImageSourceUpdateData(source, completeData, true)
+        CGImageSourceUpdateData(source, TestData.minimalPNG, true)
         #expect(CGImageSourceGetStatus(source) == .statusComplete)
         #expect(CGImageSourceGetCount(source) == 1)
     }
@@ -355,7 +359,7 @@ struct CGImageSourceIncrementalTests {
         let source = CGImageSourceCreateIncremental(nil)
 
         // Update with partial data
-        let partialProvider = CGDataProvider(data: Array(TestData.minimalJPEG.prefix(10)))
+        let partialProvider = CGDataProvider(data: Data(Array(TestData.minimalJPEG.prefix(10))))
         CGImageSourceUpdateDataProvider(source, partialProvider, false)
         #expect(CGImageSourceGetStatus(source) == .statusIncomplete)
 
@@ -367,8 +371,8 @@ struct CGImageSourceIncrementalTests {
 
     @Test("Incremental source with options")
     func incrementalWithOptions() {
-        let options: CFDictionary = [
-            kCGImageSourceTypeIdentifierHint as String: "public.png"
+        let options: [String: Any] = [
+            kCGImageSourceTypeIdentifierHint: "public.png"
         ]
         let source = CGImageSourceCreateIncremental(options)
 
@@ -394,17 +398,52 @@ struct CGImageSourceOptionsTests {
         #expect(!kCGImageSourceSubsampleFactor.isEmpty)
     }
 
-    @Test("Create source with options")
-    func createWithOptions() {
-        let options: CFDictionary = [
-            kCGImageSourceShouldCache as String: true,
-            kCGImageSourceTypeIdentifierHint as String: "public.png"
+    @Test("Create source with type hint option")
+    func createWithTypeHint() {
+        let options: [String: Any] = [
+            kCGImageSourceTypeIdentifierHint: "public.png"
         ]
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, options)
 
         #expect(source != nil)
-        #expect(CGImageSourceGetStatus(source!) == .statusComplete)
+        #expect(CGImageSourceGetType(source!) == "public.png")
+    }
+
+    @Test("Thumbnail max pixel size option works")
+    func thumbnailMaxPixelSizeOption() {
+        let data = TestData.pngWithDimensions(width: 200, height: 100)
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        // Create thumbnail with max size 50
+        let options: [String: Any] = [
+            kCGImageSourceThumbnailMaxPixelSize: 50,
+            kCGImageSourceCreateThumbnailFromImageAlways: true
+        ]
+        let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+
+        #expect(thumbnail != nil)
+        #expect(thumbnail!.width <= 50)
+        #expect(thumbnail!.height <= 50)
+    }
+
+    @Test("Create thumbnail from image always option")
+    func createThumbnailAlwaysOption() {
+        let data = TestData.pngWithDimensions(width: 100, height: 80)
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        let options: [String: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 40
+        ]
+        let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+
+        #expect(thumbnail != nil)
+        // Aspect ratio should be preserved: 100x80 -> 40x32
+        let expectedWidth = 40
+        let expectedHeight = 32
+        #expect(thumbnail!.width == expectedWidth)
+        #expect(thumbnail!.height == expectedHeight)
     }
 }
 
@@ -415,7 +454,7 @@ struct CGImageSourceEqualityTests {
 
     @Test("Same source is equal to itself")
     func sameSourceEqual() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(source == source)
@@ -423,17 +462,15 @@ struct CGImageSourceEqualityTests {
 
     @Test("Different sources are not equal")
     func differentSourcesNotEqual() {
-        let data1 = CFData(bytes: TestData.minimalPNG)
-        let data2 = CFData(bytes: TestData.minimalPNG)
-        let source1 = CGImageSourceCreateWithData(data1, nil)!
-        let source2 = CGImageSourceCreateWithData(data2, nil)!
+        let source1 = CGImageSourceCreateWithData(TestData.minimalPNG, nil)!
+        let source2 = CGImageSourceCreateWithData(TestData.minimalPNG, nil)!
 
         #expect(source1 != source2)
     }
 
     @Test("Source can be used as dictionary key")
     func sourceAsDictionaryKey() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         var dict: [CGImageSource: String] = [:]
@@ -450,7 +487,7 @@ struct CGImageSourceAuxiliaryDataTests {
 
     @Test("Copy auxiliary data info returns nil for basic image")
     func copyAuxiliaryDataInfoReturnsNil() {
-        let data = CFData(bytes: TestData.minimalPNG)
+        let data = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(data, nil)!
 
         let auxData = CGImageSourceCopyAuxiliaryDataInfoAtIndex(

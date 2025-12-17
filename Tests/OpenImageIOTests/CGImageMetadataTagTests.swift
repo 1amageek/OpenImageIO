@@ -4,6 +4,7 @@
 // Comprehensive tests for CGImageMetadataTag functionality
 
 import Testing
+import Foundation
 @testable import OpenImageIO
 
 // MARK: - CGImageMetadataTag Creation Tests
@@ -16,7 +17,7 @@ struct CGImageMetadataTagCreationTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test Title"
         )
@@ -29,7 +30,7 @@ struct CGImageMetadataTagCreationTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceExif,
             kCGImageMetadataPrefixExif,
-            "ISOSpeedRatings" as CFString,
+            "ISOSpeedRatings",
             .string,
             100
         )
@@ -42,7 +43,7 @@ struct CGImageMetadataTagCreationTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "subject" as CFString,
+            "subject",
             .arrayOrdered,
             ["keyword1", "keyword2", "keyword3"]
         )
@@ -56,7 +57,7 @@ struct CGImageMetadataTagCreationTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             nil,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )
@@ -70,7 +71,7 @@ struct CGImageMetadataTagCreationTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "" as CFString,
+            "",
             .string,
             "Test"
         )
@@ -81,9 +82,9 @@ struct CGImageMetadataTagCreationTests {
     @Test("Create tag with empty namespace returns nil")
     func createWithEmptyNamespace() {
         let tag = CGImageMetadataTagCreate(
-            "" as CFString,
+            "",
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )
@@ -91,10 +92,14 @@ struct CGImageMetadataTagCreationTests {
         #expect(tag == nil)
     }
 
-    @Test("Get tag type ID")
+    @Test("Get tag type ID returns consistent value")
     func getTypeID() {
-        let typeID = CGImageMetadataTagGetTypeID()
-        #expect(typeID >= 0)
+        let typeID1 = CGImageMetadataTagGetTypeID()
+        let typeID2 = CGImageMetadataTagGetTypeID()
+
+        // Verify it returns a consistent value
+        #expect(typeID1 == typeID2)
+        #expect(typeID1 >= 0)
     }
 }
 
@@ -108,7 +113,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -123,7 +128,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -138,7 +143,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -153,7 +158,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "My Title"
         )!
@@ -168,7 +173,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceExif,
             kCGImageMetadataPrefixExif,
-            "ISOSpeedRatings" as CFString,
+            "ISOSpeedRatings",
             .string,
             400
         )!
@@ -184,7 +189,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "subject" as CFString,
+            "subject",
             .arrayUnordered,
             keywords
         )!
@@ -199,7 +204,7 @@ struct CGImageMetadataTagAttributeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -220,7 +225,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -233,7 +238,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .default,
             "Test"
         )!
@@ -246,7 +251,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "subject" as CFString,
+            "subject",
             .arrayUnordered,
             ["a", "b"]
         )!
@@ -259,7 +264,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "subject" as CFString,
+            "subject",
             .arrayOrdered,
             ["a", "b"]
         )!
@@ -272,7 +277,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .alternateArray,
             ["en-US: Title", "de-DE: Titel"]
         )!
@@ -285,7 +290,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .alternateText,
             ["en-US: Title", "fr-FR: Titre"]
         )!
@@ -298,7 +303,7 @@ struct CGImageMetadataTagTypeTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceExif,
             kCGImageMetadataPrefixExif,
-            "GPSCoordinate" as CFString,
+            "GPSCoordinate",
             .structure,
             ["latitude": 40.7128, "longitude": -74.0060]
         )!
@@ -317,7 +322,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "creator" as CFString,
+            "creator",
             .string,
             "John Doe"
         )!
@@ -331,7 +336,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceExif,
             kCGImageMetadataPrefixExif,
-            "ExposureTime" as CFString,
+            "ExposureTime",
             .string,
             "1/125"
         )!
@@ -345,7 +350,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceTIFF,
             kCGImageMetadataPrefixTIFF,
-            "Make" as CFString,
+            "Make",
             .string,
             "Canon"
         )!
@@ -359,7 +364,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceXMPBasic,
             kCGImageMetadataPrefixXMPBasic,
-            "CreateDate" as CFString,
+            "CreateDate",
             .string,
             "2024-01-15T10:30:00"
         )!
@@ -373,7 +378,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceIPTCCore,
             kCGImageMetadataPrefixIPTCCore,
-            "Location" as CFString,
+            "Location",
             .string,
             "New York City"
         )!
@@ -386,7 +391,7 @@ struct CGImageMetadataTagNamespaceTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespacePhotoshop,
             kCGImageMetadataPrefixPhotoshop,
-            "Credit" as CFString,
+            "Credit",
             .string,
             "AP Photo"
         )!
@@ -405,7 +410,7 @@ struct CGImageMetadataTagEqualityTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -418,7 +423,7 @@ struct CGImageMetadataTagEqualityTests {
         let tag1 = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -426,7 +431,7 @@ struct CGImageMetadataTagEqualityTests {
         let tag2 = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!
@@ -439,7 +444,7 @@ struct CGImageMetadataTagEqualityTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "title" as CFString,
+            "title",
             .string,
             "Test"
         )!

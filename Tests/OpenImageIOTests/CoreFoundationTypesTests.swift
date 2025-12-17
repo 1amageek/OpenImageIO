@@ -1,156 +1,73 @@
 // CoreFoundationTypesTests.swift
 // OpenImageIO Tests
 //
-// Comprehensive tests for CoreFoundation type compatibility
+// Tests for OpenCoreGraphics types used in OpenImageIO
 
 import Testing
+import Foundation
 @testable import OpenImageIO
-
-// MARK: - CFData Tests
-
-@Suite("CFData")
-struct CFDataTests {
-
-    @Test("Create CFData with bytes")
-    func createWithBytes() {
-        let bytes: [UInt8] = [0x01, 0x02, 0x03, 0x04]
-        let data = CFData(bytes: bytes)
-
-        #expect(data.data == bytes)
-        #expect(data.length == 4)
-    }
-
-    @Test("Create CFData with empty bytes")
-    func createWithEmptyBytes() {
-        let data = CFData(bytes: [])
-
-        #expect(data.data.isEmpty)
-        #expect(data.length == 0)
-    }
-
-    @Test("CFData length property")
-    func lengthProperty() {
-        let data = CFData(bytes: [1, 2, 3, 4, 5])
-
-        #expect(data.length == 5)
-    }
-}
-
-// MARK: - CFMutableData Tests
-
-@Suite("CFMutableData")
-struct CFMutableDataTests {
-
-    @Test("Create CFMutableData with initial bytes")
-    func createWithInitialBytes() {
-        let bytes: [UInt8] = [0x01, 0x02]
-        let data = CFMutableData(bytes: bytes)
-
-        #expect(data.data == bytes)
-        #expect(data.length == 2)
-    }
-
-    @Test("Create CFMutableData empty")
-    func createEmpty() {
-        let data = CFMutableData()
-
-        #expect(data.length == 0)
-        #expect(data.bytes.isEmpty)
-    }
-
-    @Test("Create CFMutableData with capacity")
-    func createWithCapacity() {
-        let data = CFMutableData(capacity: 100)
-
-        #expect(data.length == 0) // Empty but with capacity
-    }
-
-    @Test("Append bytes to CFMutableData")
-    func appendBytes() {
-        let data = CFMutableData()
-        data.append([0x01, 0x02])
-        data.append([0x03, 0x04])
-
-        #expect(data.bytes == [0x01, 0x02, 0x03, 0x04])
-        #expect(data.length == 4)
-    }
-
-    @Test("CFMutableData bytes property")
-    func bytesProperty() {
-        let data = CFMutableData(bytes: [1, 2, 3])
-
-        #expect(data.bytes == [1, 2, 3])
-    }
-}
-
-// MARK: - CFURL Tests
-
-@Suite("CFURL")
-struct CFURLTests {
-
-    @Test("Create file URL")
-    func createFileURL() {
-        let url = CFURL(fileURLWithPath: "/path/to/file.png")
-
-        #expect(url.path == "/path/to/file.png")
-        #expect(url.isFileURL == true)
-    }
-
-    @Test("Create URL from string")
-    func createFromString() {
-        let url = CFURL(string: "https://example.com/image.jpg")
-
-        #expect(url.path == "https://example.com/image.jpg")
-        #expect(url.isFileURL == false)
-    }
-
-    @Test("CFURL is equatable")
-    func isEquatable() {
-        let url1 = CFURL(fileURLWithPath: "/test/path")
-        let url2 = CFURL(fileURLWithPath: "/test/path")
-        let url3 = CFURL(fileURLWithPath: "/different/path")
-
-        #expect(url1 == url2)
-        #expect(url1 != url3)
-    }
-
-    @Test("CFURL is hashable")
-    func isHashable() {
-        let url = CFURL(fileURLWithPath: "/test/path")
-        var dict: [CFURL: String] = [:]
-        dict[url] = "test"
-
-        #expect(dict[url] == "test")
-    }
-}
+import OpenCoreGraphics
 
 // MARK: - CGImage Tests
 
 @Suite("CGImage")
 struct CGImageTests {
 
-    @Test("Create CGImage")
+    @Test("Create CGImage with builder")
     func createCGImage() {
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            #expect(Bool(false), "Failed to create color space")
+            return
+        }
+
+        let width = 100
+        let height = 50
+        let bytesPerRow = width * 4
+        let data = [UInt8](repeating: 255, count: bytesPerRow * height)
+        let provider = CGDataProvider(data: Data(data))
+
         let image = CGImage(
-            width: 100,
-            height: 50,
+            width: width,
+            height: height,
             bitsPerComponent: 8,
             bitsPerPixel: 32,
-            bytesPerRow: 400,
-            data: [UInt8](repeating: 0, count: 20000)
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
         )
 
-        #expect(image.width == 100)
-        #expect(image.height == 50)
-        #expect(image.bitsPerComponent == 8)
-        #expect(image.bitsPerPixel == 32)
-        #expect(image.bytesPerRow == 400)
+        #expect(image != nil)
+        #expect(image?.width == 100)
+        #expect(image?.height == 50)
     }
 
     @Test("CGImage is equatable by identity")
     func isEquatableByIdentity() {
-        let image1 = CGImage(width: 10, height: 10, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40, data: [])
-        let image2 = CGImage(width: 10, height: 10, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40, data: [])
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return
+        }
+
+        let provider1 = CGDataProvider(data: Data([UInt8](repeating: 255, count: 400)))
+        let provider2 = CGDataProvider(data: Data([UInt8](repeating: 255, count: 400)))
+
+        let image1 = CGImage(
+            width: 10, height: 10,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider1, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+        )
+        let image2 = CGImage(
+            width: 10, height: 10,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider2, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+        )
 
         #expect(image1 == image1) // Same instance
         #expect(image1 != image2) // Different instances
@@ -158,11 +75,25 @@ struct CGImageTests {
 
     @Test("CGImage is hashable")
     func isHashable() {
-        let image = CGImage(width: 10, height: 10, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40, data: [])
-        var dict: [CGImage: String] = [:]
-        dict[image] = "test"
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return
+        }
 
-        #expect(dict[image] == "test")
+        let provider = CGDataProvider(data: Data([UInt8](repeating: 255, count: 400)))
+        let image = CGImage(
+            width: 10, height: 10,
+            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 40,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+        )
+
+        guard let img = image else { return }
+
+        var dict: [CGImage: String] = [:]
+        dict[img] = "test"
+
+        #expect(dict[img] == "test")
     }
 }
 
@@ -174,15 +105,15 @@ struct CGDataProviderTests {
     @Test("Create CGDataProvider with data")
     func createWithData() {
         let bytes: [UInt8] = [0x01, 0x02, 0x03]
-        let provider = CGDataProvider(data: bytes)
+        let provider = CGDataProvider(data: Data(bytes))
 
-        #expect(provider.data == bytes)
+        #expect(provider.data?.count == 3)
     }
 
     @Test("CGDataProvider is equatable by identity")
     func isEquatableByIdentity() {
-        let provider1 = CGDataProvider(data: [1, 2, 3])
-        let provider2 = CGDataProvider(data: [1, 2, 3])
+        let provider1 = CGDataProvider(data: Data([1, 2, 3]))
+        let provider2 = CGDataProvider(data: Data([1, 2, 3]))
 
         #expect(provider1 == provider1)
         #expect(provider1 != provider2)
@@ -190,7 +121,7 @@ struct CGDataProviderTests {
 
     @Test("CGDataProvider is hashable")
     func isHashable() {
-        let provider = CGDataProvider(data: [1, 2, 3])
+        let provider = CGDataProvider(data: Data([1, 2, 3]))
         var dict: [CGDataProvider: String] = [:]
         dict[provider] = "test"
 
@@ -203,26 +134,42 @@ struct CGDataProviderTests {
 @Suite("CGDataConsumer")
 struct CGDataConsumerTests {
 
-    @Test("Create CGDataConsumer")
-    func createConsumer() {
-        let consumer = CGDataConsumer()
+    @Test("Create CGDataConsumer with data")
+    func createConsumerWithData() {
+        let data = NSMutableData()
+        let consumer = CGDataConsumer(data: data)
 
-        #expect(consumer.data.isEmpty)
+        #expect(consumer != nil)
     }
 
     @Test("Write to CGDataConsumer")
     func writeToConsumer() {
-        let consumer = CGDataConsumer()
-        consumer.write([0x01, 0x02])
-        consumer.write([0x03, 0x04])
+        let data = NSMutableData()
+        guard let consumer = CGDataConsumer(data: data) else {
+            #expect(Bool(false), "Failed to create consumer")
+            return
+        }
+        let bytes1: [UInt8] = [0x01, 0x02]
+        let bytes2: [UInt8] = [0x03, 0x04]
+        bytes1.withUnsafeBytes { buffer in
+            _ = consumer.putBytes(buffer.baseAddress, count: buffer.count)
+        }
+        bytes2.withUnsafeBytes { buffer in
+            _ = consumer.putBytes(buffer.baseAddress, count: buffer.count)
+        }
 
-        #expect(consumer.data == [0x01, 0x02, 0x03, 0x04])
+        #expect(Data(referencing: data) == Data([0x01, 0x02, 0x03, 0x04]))
     }
 
     @Test("CGDataConsumer is equatable by identity")
     func isEquatableByIdentity() {
-        let consumer1 = CGDataConsumer()
-        let consumer2 = CGDataConsumer()
+        let data1 = NSMutableData()
+        let data2 = NSMutableData()
+        guard let consumer1 = CGDataConsumer(data: data1),
+              let consumer2 = CGDataConsumer(data: data2) else {
+            #expect(Bool(false), "Failed to create consumers")
+            return
+        }
 
         #expect(consumer1 == consumer1)
         #expect(consumer1 != consumer2)
@@ -230,7 +177,11 @@ struct CGDataConsumerTests {
 
     @Test("CGDataConsumer is hashable")
     func isHashable() {
-        let consumer = CGDataConsumer()
+        let data = NSMutableData()
+        guard let consumer = CGDataConsumer(data: data) else {
+            #expect(Bool(false), "Failed to create consumer")
+            return
+        }
         var dict: [CGDataConsumer: String] = [:]
         dict[consumer] = "test"
 
@@ -238,46 +189,10 @@ struct CGDataConsumerTests {
     }
 }
 
-// MARK: - Type Alias Tests
+// MARK: - Type Constants Tests
 
-@Suite("Type Aliases")
-struct TypeAliasTests {
-
-    @Test("CFTypeID is UInt")
-    func cfTypeIDIsUInt() {
-        let id: CFTypeID = 42
-        #expect(id == 42)
-    }
-
-    @Test("CFString is String")
-    func cfStringIsString() {
-        let str: CFString = "Hello"
-        #expect(str == "Hello")
-    }
-
-    @Test("CFDictionary is Dictionary")
-    func cfDictionaryIsDictionary() {
-        let dict: CFDictionary = ["key": "value"]
-        #expect(dict["key"] as? String == "value")
-    }
-
-    @Test("CFArray is Array")
-    func cfArrayIsArray() {
-        let arr: CFArray = [1, 2, 3]
-        #expect(arr.count == 3)
-    }
-
-    @Test("CFIndex is Int")
-    func cfIndexIsInt() {
-        let idx: CFIndex = 10
-        #expect(idx == 10)
-    }
-
-    @Test("CGFloat is Double")
-    func cgFloatIsDouble() {
-        let f: CGFloat = 3.14
-        #expect(f == 3.14)
-    }
+@Suite("Type Constants")
+struct TypeConstantsTests {
 
     @Test("OSStatus is Int32")
     func osStatusIsInt32() {
@@ -288,59 +203,5 @@ struct TypeAliasTests {
     @Test("noErr constant")
     func noErrConstant() {
         #expect(noErr == 0)
-    }
-}
-
-// MARK: - Sendable Conformance Tests
-
-@Suite("Sendable Conformance")
-struct SendableConformanceTests {
-
-    @Test("CFData is Sendable")
-    func cfDataIsSendable() {
-        let data = CFData(bytes: [1, 2, 3])
-        Task {
-            _ = data.length
-        }
-    }
-
-    @Test("CFMutableData is Sendable")
-    func cfMutableDataIsSendable() {
-        let data = CFMutableData(bytes: [1, 2, 3])
-        Task {
-            _ = data.length
-        }
-    }
-
-    @Test("CFURL is Sendable")
-    func cfurlIsSendable() {
-        let url = CFURL(fileURLWithPath: "/test")
-        Task {
-            _ = url.path
-        }
-    }
-
-    @Test("CGImage is Sendable")
-    func cgImageIsSendable() {
-        let image = CGImage(width: 1, height: 1, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 4, data: [0, 0, 0, 0])
-        Task {
-            _ = image.width
-        }
-    }
-
-    @Test("CGDataProvider is Sendable")
-    func cgDataProviderIsSendable() {
-        let provider = CGDataProvider(data: [1, 2, 3])
-        Task {
-            _ = provider.data
-        }
-    }
-
-    @Test("CGDataConsumer is Sendable")
-    func cgDataConsumerIsSendable() {
-        let consumer = CGDataConsumer()
-        Task {
-            _ = consumer.data
-        }
     }
 }

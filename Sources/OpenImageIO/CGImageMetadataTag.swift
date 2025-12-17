@@ -41,21 +41,19 @@ public class CGImageMetadataTag: Hashable, Equatable {
 
 /// Creates a new image metadata tag, and fills it with the specified information.
 public func CGImageMetadataTagCreate(
-    _ xmlns: CFString,
-    _ prefix: CFString?,
-    _ name: CFString,
+    _ xmlns: String,
+    _ prefix: String?,
+    _ name: String,
     _ type: CGImageMetadataType,
     _ value: Any
 ) -> CGImageMetadataTag? {
-    let nameString = name as String
-    let xmlnsString = xmlns as String
-    guard !nameString.isEmpty else { return nil }
-    guard !xmlnsString.isEmpty else { return nil }
+    guard !name.isEmpty else { return nil }
+    guard !xmlns.isEmpty else { return nil }
 
     return CGImageMetadataTag(
-        namespace: xmlns as String,
-        prefix: prefix as String?,
-        name: name as String,
+        namespace: xmlns,
+        prefix: prefix,
+        name: name,
         type: type,
         value: value
     )
@@ -64,18 +62,18 @@ public func CGImageMetadataTagCreate(
 // MARK: - CGImageMetadataTag Attribute Functions
 
 /// Returns an immutable copy of the tag's XMP namespace.
-public func CGImageMetadataTagCopyNamespace(_ tag: CGImageMetadataTag) -> CFString? {
-    return tag.namespace as CFString
+public func CGImageMetadataTagCopyNamespace(_ tag: CGImageMetadataTag) -> String? {
+    return tag.namespace
 }
 
 /// Returns an immutable copy of the tag's prefix.
-public func CGImageMetadataTagCopyPrefix(_ tag: CGImageMetadataTag) -> CFString? {
-    return tag.prefix as CFString?
+public func CGImageMetadataTagCopyPrefix(_ tag: CGImageMetadataTag) -> String? {
+    return tag.prefix
 }
 
 /// Returns an immutable copy of the tag's name.
-public func CGImageMetadataTagCopyName(_ tag: CGImageMetadataTag) -> CFString? {
-    return tag.name as CFString
+public func CGImageMetadataTagCopyName(_ tag: CGImageMetadataTag) -> String? {
+    return tag.name
 }
 
 /// Returns a shallow copy of the tag's value, which is suitable only for reading.
@@ -84,7 +82,7 @@ public func CGImageMetadataTagCopyValue(_ tag: CGImageMetadataTag) -> Any? {
 }
 
 /// Returns a shallow copy of the metadata tags that act as qualifiers for the current tag.
-public func CGImageMetadataTagCopyQualifiers(_ tag: CGImageMetadataTag) -> CFArray? {
+public func CGImageMetadataTagCopyQualifiers(_ tag: CGImageMetadataTag) -> [CGImageMetadataTag]? {
     // Qualifiers are nested tags that provide additional information
     // For now, return nil as basic implementation
     return nil
@@ -98,6 +96,6 @@ public func CGImageMetadataTagGetType(_ tag: CGImageMetadataTag) -> CGImageMetad
 }
 
 /// Returns the type identifier for the image metadata tag opaque type.
-public func CGImageMetadataTagGetTypeID() -> CFTypeID {
+public func CGImageMetadataTagGetTypeID() -> UInt {
     return 2 // Placeholder - actual implementation would return unique ID
 }

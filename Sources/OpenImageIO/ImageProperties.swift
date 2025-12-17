@@ -199,8 +199,8 @@ public typealias CGImageSourceAnimationBlock = (Int, CGImage, UnsafeMutablePoint
 
 /// Animate the sequence of images in the Graphics Interchange Format (GIF) or Animated Portable Network Graphics (APNG) file at the specified URL.
 public func CGAnimateImageAtURLWithBlock(
-    _ url: CFURL,
-    _ options: CFDictionary?,
+    _ url: URL,
+    _ options: [String: Any]?,
     _ block: @escaping CGImageSourceAnimationBlock
 ) -> OSStatus {
     guard let source = CGImageSourceCreateWithURL(url, options) else {
@@ -222,8 +222,8 @@ public func CGAnimateImageAtURLWithBlock(
 
 /// Animate the sequence of images using data from a Graphics Interchange Format (GIF) or Animated Portable Network Graphics (APNG) file.
 public func CGAnimateImageDataWithBlock(
-    _ data: CFData,
-    _ options: CFDictionary?,
+    _ data: Data,
+    _ options: [String: Any]?,
     _ block: @escaping CGImageSourceAnimationBlock
 ) -> OSStatus {
     guard let source = CGImageSourceCreateWithData(data, options) else {

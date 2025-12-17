@@ -59,54 +59,49 @@ public class CGImageDestination: Hashable, Equatable {
 
 /// Creates an image destination that writes image data to the specified URL.
 public func CGImageDestinationCreateWithURL(
-    _ url: CFURL,
-    _ type: CFString,
+    _ url: URL,
+    _ type: String,
     _ count: Int,
-    _ options: CFDictionary?
+    _ options: [String: Any]?
 ) -> CGImageDestination? {
     guard count > 0 else { return nil }
-    let swiftURL = url as URL
-    let swiftOptions = options as? [String: Any]
     return CGImageDestination(
-        output: .url(swiftURL),
-        typeIdentifier: type as String,
+        output: .url(url),
+        typeIdentifier: type,
         count: count,
-        options: swiftOptions
+        options: options
     )
 }
 
-/// Creates an image destination that writes to a Core Foundation mutable data object.
+/// Creates an image destination that writes to a mutable data object.
 public func CGImageDestinationCreateWithData(
-    _ data: CFMutableData,
-    _ type: CFString,
+    _ data: NSMutableData,
+    _ type: String,
     _ count: Int,
-    _ options: CFDictionary?
+    _ options: [String: Any]?
 ) -> CGImageDestination? {
     guard count > 0 else { return nil }
-    let swiftData = data as NSMutableData
-    let swiftOptions = options as? [String: Any]
     return CGImageDestination(
-        output: .data(swiftData),
-        typeIdentifier: type as String,
+        output: .data(data),
+        typeIdentifier: type,
         count: count,
-        options: swiftOptions
+        options: options
     )
 }
 
 /// Creates an image destination that writes to the specified data consumer.
 public func CGImageDestinationCreateWithDataConsumer(
     _ consumer: CGDataConsumer,
-    _ type: CFString,
+    _ type: String,
     _ count: Int,
-    _ options: CFDictionary?
+    _ options: [String: Any]?
 ) -> CGImageDestination? {
     guard count > 0 else { return nil }
-    let swiftOptions = options as? [String: Any]
     return CGImageDestination(
         output: .consumer(consumer),
-        typeIdentifier: type as String,
+        typeIdentifier: type,
         count: count,
-        options: swiftOptions
+        options: options
     )
 }
 
@@ -116,15 +111,14 @@ public func CGImageDestinationCreateWithDataConsumer(
 public func CGImageDestinationAddImage(
     _ idst: CGImageDestination,
     _ image: CGImage,
-    _ properties: CFDictionary?
+    _ properties: [String: Any]?
 ) {
     guard !idst.isFinalized && idst.images.count < idst.maxImageCount else { return }
-    let swiftProperties = properties as? [String: Any]
     idst.images.append(CGImageDestination.ImageEntry(
         image: image,
         imageSource: nil,
         sourceIndex: 0,
-        properties: swiftProperties
+        properties: properties
     ))
 }
 
@@ -133,36 +127,34 @@ public func CGImageDestinationAddImageFromSource(
     _ idst: CGImageDestination,
     _ isrc: CGImageSource,
     _ index: Int,
-    _ properties: CFDictionary?
+    _ properties: [String: Any]?
 ) {
     guard !idst.isFinalized && idst.images.count < idst.maxImageCount else { return }
     guard index >= 0 && index < isrc.imageCount else { return }
-    let swiftProperties = properties as? [String: Any]
     idst.images.append(CGImageDestination.ImageEntry(
         image: nil,
         imageSource: isrc,
         sourceIndex: index,
-        properties: swiftProperties
+        properties: properties
     ))
 }
 
 // MARK: - CGImageDestination Properties Functions
 
 /// Applies one or more properties to all images in an image destination.
-public func CGImageDestinationSetProperties(_ idst: CGImageDestination, _ properties: CFDictionary?) {
+public func CGImageDestinationSetProperties(_ idst: CGImageDestination, _ properties: [String: Any]?) {
     guard !idst.isFinalized else { return }
-    idst.globalProperties = properties as? [String: Any]
+    idst.globalProperties = properties
 }
 
 /// Sets the auxiliary data, such as mattes and depth information, that accompany the image.
 public func CGImageDestinationAddAuxiliaryDataInfo(
     _ idst: CGImageDestination,
-    _ auxiliaryImageDataType: CFString,
-    _ auxiliaryDataInfo: CFDictionary
+    _ auxiliaryImageDataType: String,
+    _ auxiliaryDataInfo: [String: Any]
 ) {
     guard !idst.isFinalized else { return }
-    let swiftDict = auxiliaryDataInfo as? [String: Any] ?? [:]
-    idst.auxiliaryData.append((type: auxiliaryImageDataType as String, data: swiftDict))
+    idst.auxiliaryData.append((type: auxiliaryImageDataType, data: auxiliaryDataInfo))
 }
 
 // MARK: - CGImageDestination Finalization
@@ -200,18 +192,18 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
 // MARK: - CGImageDestination Type Information
 
 /// Returns an array of the uniform type identifiers that are supported for image destinations.
-public func CGImageDestinationCopyTypeIdentifiers() -> CFArray {
+public func CGImageDestinationCopyTypeIdentifiers() -> [String] {
     return [
         "public.png",
         "public.jpeg",
         "com.compuserve.gif",
         "com.microsoft.bmp",
         "public.tiff"
-    ] as CFArray
+    ]
 }
 
 /// Returns the unique type identifier of an image destination opaque type.
-public func CGImageDestinationGetTypeID() -> CFTypeID {
+public func CGImageDestinationGetTypeID() -> UInt {
     return 1
 }
 
@@ -248,62 +240,12 @@ private func encodePNG(_ idst: CGImageDestination) -> [UInt8] {
 
     guard let img = image else { return [] }
 
-    var output: [UInt8] = []
-
-    // PNG Signature
-    output.append(contentsOf: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-
-    // IHDR chunk
-    var ihdr: [UInt8] = []
-    ihdr.append(contentsOf: withUnsafeBytes(of: UInt32(img.width).bigEndian) { Array($0) })
-    ihdr.append(contentsOf: withUnsafeBytes(of: UInt32(img.height).bigEndian) { Array($0) })
-    ihdr.append(8) // Bit depth
-    ihdr.append(6) // Color type (RGBA)
-    ihdr.append(0) // Compression method
-    ihdr.append(0) // Filter method
-    ihdr.append(0) // Interlace method
-
-    output.append(contentsOf: createPNGChunk(type: [0x49, 0x48, 0x44, 0x52], data: ihdr))
-
-    // IDAT chunk (image data)
-    var idat: [UInt8] = []
-
-    // Minimal zlib header
-    idat.append(0x78)
-    idat.append(0x01)
-
-    // Add placeholder image data with deflate
-    guard let rawData = img.dataProvider?.data else { return [] }
-    var deflateData: [UInt8] = []
-
-    for row in 0..<img.height {
-        deflateData.append(0) // Filter type: None
-        let rowStart = row * img.bytesPerRow
-        let rowEnd = min(rowStart + img.width * 4, rawData.count)
-        if rowStart < rawData.count {
-            deflateData.append(contentsOf: rawData[rowStart..<rowEnd])
-        }
+    // Use new PNGEncoder with DEFLATE compression
+    if let encoded = PNGEncoder.encode(image: img, options: entry.properties) {
+        return Array(encoded)
     }
 
-    // Simple store block (no compression)
-    let blockSize = deflateData.count
-    if blockSize <= 65535 {
-        idat.append(0x01) // Final block, no compression
-        idat.append(contentsOf: withUnsafeBytes(of: UInt16(blockSize).littleEndian) { Array($0) })
-        idat.append(contentsOf: withUnsafeBytes(of: (~UInt16(blockSize)).littleEndian) { Array($0) })
-        idat.append(contentsOf: deflateData)
-    }
-
-    // Adler32 checksum
-    let adler = adler32(deflateData)
-    idat.append(contentsOf: withUnsafeBytes(of: adler.bigEndian) { Array($0) })
-
-    output.append(contentsOf: createPNGChunk(type: [0x49, 0x44, 0x41, 0x54], data: idat))
-
-    // IEND chunk
-    output.append(contentsOf: createPNGChunk(type: [0x49, 0x45, 0x4E, 0x44], data: []))
-
-    return output
+    return []
 }
 
 private func createPNGChunk(type: [UInt8], data: [UInt8]) -> [UInt8] {
@@ -451,40 +393,10 @@ private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? =
 }
 
 private func encodeGIF(_ idst: CGImageDestination) -> [UInt8] {
-    var output: [UInt8] = []
+    // Collect all images
+    var images: [CGImage] = []
 
-    guard let entry = idst.images.first else { return [] }
-
-    let image: CGImage?
-    if let img = entry.image {
-        image = img
-    } else if let source = entry.imageSource {
-        image = CGImageSourceCreateImageAtIndex(source, entry.sourceIndex, nil)
-    } else {
-        return []
-    }
-
-    guard let img = image else { return [] }
-
-    // GIF Header
-    output.append(contentsOf: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]) // "GIF89a"
-
-    // Logical Screen Descriptor
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(img.width).littleEndian) { Array($0) })
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(img.height).littleEndian) { Array($0) })
-    output.append(0xF7) // Packed byte (global color table, 256 colors)
-    output.append(0x00) // Background color index
-    output.append(0x00) // Pixel aspect ratio
-
-    // Global Color Table (256 grayscale entries)
-    for i in 0..<256 {
-        output.append(UInt8(i))
-        output.append(UInt8(i))
-        output.append(UInt8(i))
-    }
-
-    // For each image
-    for (_, entry) in idst.images.enumerated() {
+    for entry in idst.images {
         let frameImage: CGImage?
         if let img = entry.image {
             frameImage = img
@@ -494,29 +406,19 @@ private func encodeGIF(_ idst: CGImageDestination) -> [UInt8] {
             continue
         }
 
-        guard let frame = frameImage else { continue }
-
-        // Image Descriptor
-        output.append(0x2C) // Image separator
-        output.append(contentsOf: [0x00, 0x00]) // Left position
-        output.append(contentsOf: [0x00, 0x00]) // Top position
-        output.append(contentsOf: withUnsafeBytes(of: UInt16(frame.width).littleEndian) { Array($0) })
-        output.append(contentsOf: withUnsafeBytes(of: UInt16(frame.height).littleEndian) { Array($0) })
-        output.append(0x00) // Packed byte (no local color table)
-
-        // Image Data (LZW minimum code size + data blocks)
-        output.append(0x08) // LZW minimum code size
-
-        // Placeholder data block
-        output.append(0x01) // Block size
-        output.append(0x00) // Data
-        output.append(0x00) // Block terminator
+        if let frame = frameImage {
+            images.append(frame)
+        }
     }
 
-    // GIF Trailer
-    output.append(0x3B)
+    guard !images.isEmpty else { return [] }
 
-    return output
+    // Use new GIFEncoder with LZW compression
+    if let encoded = GIFEncoder.encode(images: images, options: idst.globalProperties) {
+        return Array(encoded)
+    }
+
+    return []
 }
 
 private func encodeBMP(_ idst: CGImageDestination) -> [UInt8] {

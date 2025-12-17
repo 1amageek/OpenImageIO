@@ -1,5 +1,7 @@
 import Testing
+import Foundation
 @testable import OpenImageIO
+import OpenCoreGraphics
 
 // MARK: - CGImageSourceStatus Tests
 
@@ -65,8 +67,8 @@ import Testing
 @Test func testCGImageSourceTypeIdentifiers() {
     let identifiers = CGImageSourceCopyTypeIdentifiers()
     #expect(identifiers.count > 0)
-    #expect((identifiers as! [String]).contains("public.png"))
-    #expect((identifiers as! [String]).contains("public.jpeg"))
+    #expect(identifiers.contains("public.png"))
+    #expect(identifiers.contains("public.jpeg"))
 }
 
 @Test func testCGImageSourceCreateWithPNGData() {
@@ -93,8 +95,8 @@ import Testing
     pngData.append(contentsOf: ihdrData)
     pngData.append(contentsOf: ihdrCRC)
 
-    let cfData = CFData(bytes: pngData)
-    let source = CGImageSourceCreateWithData(cfData, nil)
+    let data = Data(pngData)
+    let source = CGImageSourceCreateWithData(data, nil)
 
     #expect(source != nil)
     #expect(CGImageSourceGetType(source!) == "public.png")
@@ -104,8 +106,8 @@ import Testing
     // Check properties
     let props = CGImageSourceCopyPropertiesAtIndex(source!, 0, nil)
     #expect(props != nil)
-    #expect(props![kCGImagePropertyPixelWidth as String] as? Int == 1)
-    #expect(props![kCGImagePropertyPixelHeight as String] as? Int == 1)
+    #expect(props![kCGImagePropertyPixelWidth] as? Int == 1)
+    #expect(props![kCGImagePropertyPixelHeight] as? Int == 1)
 }
 
 @Test func testCGImageSourceCreateWithJPEGData() {
@@ -128,8 +130,8 @@ import Testing
         0xFF, 0xD9              // EOI
     ]
 
-    let cfData = CFData(bytes: jpegData)
-    let source = CGImageSourceCreateWithData(cfData, nil)
+    let data = Data(jpegData)
+    let source = CGImageSourceCreateWithData(data, nil)
 
     #expect(source != nil)
     #expect(CGImageSourceGetType(source!) == "public.jpeg")
@@ -141,15 +143,15 @@ import Testing
 @Test func testCGImageDestinationTypeIdentifiers() {
     let identifiers = CGImageDestinationCopyTypeIdentifiers()
     #expect(identifiers.count > 0)
-    #expect((identifiers as! [String]).contains("public.png"))
-    #expect((identifiers as! [String]).contains("public.jpeg"))
+    #expect(identifiers.contains("public.png"))
+    #expect(identifiers.contains("public.jpeg"))
 }
 
 @Test func testCGImageDestinationCreateWithData() {
-    let data = CFMutableData()
+    let data = NSMutableData()
     let destination = CGImageDestinationCreateWithData(
         data,
-        "public.png" as CFString,
+        "public.png",
         1,
         nil
     )
@@ -158,23 +160,16 @@ import Testing
 }
 
 @Test func testCGImageDestinationAddImageAndFinalize() {
-    let data = CFMutableData()
+    let data = NSMutableData()
     let destination = CGImageDestinationCreateWithData(
         data,
-        "public.png" as CFString,
+        "public.png",
         1,
         nil
     )!
 
     // Create a simple test image
-    let image = CGImage(
-        width: 2,
-        height: 2,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: 8,
-        data: [UInt8](repeating: 255, count: 16)
-    )
+    let image = createTestImage(width: 2, height: 2)
 
     CGImageDestinationAddImage(destination, image, nil)
     let success = CGImageDestinationFinalize(destination)
@@ -189,7 +184,7 @@ import Testing
     let tag = CGImageMetadataTagCreate(
         kCGImageMetadataNamespaceDublinCore,
         kCGImageMetadataPrefixDublinCore,
-        "title" as CFString,
+        "title",
         .string,
         "Test Title"
     )
@@ -218,30 +213,30 @@ import Testing
     let success = CGImageMetadataSetValueWithPath(
         metadata,
         nil,
-        "dc:title" as CFString,
+        "dc:title",
         "Test Title"
     )
 
     #expect(success == true)
 
-    let value = CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:title" as CFString)
+    let value = CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:title")
     #expect(value == "Test Title")
 }
 
 // MARK: - XMP Namespace Tests
 
 @Test func testXMPNamespaces() {
-    #expect(kCGImageMetadataNamespaceDublinCore as String == "http://purl.org/dc/elements/1.1/")
-    #expect(kCGImageMetadataNamespaceExif as String == "http://ns.adobe.com/exif/1.0/")
-    #expect(kCGImageMetadataNamespaceTIFF as String == "http://ns.adobe.com/tiff/1.0/")
-    #expect(kCGImageMetadataNamespaceXMPBasic as String == "http://ns.adobe.com/xap/1.0/")
+    #expect(kCGImageMetadataNamespaceDublinCore == "http://purl.org/dc/elements/1.1/")
+    #expect(kCGImageMetadataNamespaceExif == "http://ns.adobe.com/exif/1.0/")
+    #expect(kCGImageMetadataNamespaceTIFF == "http://ns.adobe.com/tiff/1.0/")
+    #expect(kCGImageMetadataNamespaceXMPBasic == "http://ns.adobe.com/xap/1.0/")
 }
 
 @Test func testXMPPrefixes() {
-    #expect(kCGImageMetadataPrefixDublinCore as String == "dc")
-    #expect(kCGImageMetadataPrefixExif as String == "exif")
-    #expect(kCGImageMetadataPrefixTIFF as String == "tiff")
-    #expect(kCGImageMetadataPrefixXMPBasic as String == "xmp")
+    #expect(kCGImageMetadataPrefixDublinCore == "dc")
+    #expect(kCGImageMetadataPrefixExif == "exif")
+    #expect(kCGImageMetadataPrefixTIFF == "tiff")
+    #expect(kCGImageMetadataPrefixXMPBasic == "xmp")
 }
 
 // MARK: - Property Constants Tests

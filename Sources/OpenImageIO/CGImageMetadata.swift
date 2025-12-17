@@ -53,10 +53,10 @@ public class CGMutableImageMetadata: CGImageMetadata {
 // MARK: - CGImageMetadata Creation Functions
 
 /// Creates a collection of metadata tags from the specified XMP data.
-public func CGImageMetadataCreateFromXMPData(_ data: CFData) -> CGImageMetadata? {
+public func CGImageMetadataCreateFromXMPData(_ data: Data) -> CGImageMetadata? {
     // Parse XMP data and create metadata tags
     // This is a simplified implementation
-    let xmpString = String(data: data as Data, encoding: .utf8) ?? ""
+    let xmpString = String(data: data, encoding: .utf8) ?? ""
 
     guard !xmpString.isEmpty else { return nil }
 
@@ -69,9 +69,9 @@ public func CGImageMetadataCreateFromXMPData(_ data: CFData) -> CGImageMetadata?
         let titleStart = xmpString.index(titleRange.upperBound, offsetBy: 0)
         let titleContent = String(xmpString[titleStart..<titleEndRange.lowerBound])
         if let tag = CGImageMetadataTagCreate(
-            kCGImageMetadataNamespaceDublinCore as CFString,
-            kCGImageMetadataPrefixDublinCore as CFString,
-            "title" as CFString,
+            kCGImageMetadataNamespaceDublinCore,
+            kCGImageMetadataPrefixDublinCore,
+            "title",
             .string,
             titleContent
         ) {
@@ -100,10 +100,9 @@ public func CGImageMetadataCreateMutableCopy(_ metadata: CGImageMetadata) -> CGM
 public func CGImageMetadataCopyTagWithPath(
     _ metadata: CGImageMetadata,
     _ parent: CGImageMetadataTag?,
-    _ path: CFString
+    _ path: String
 ) -> CGImageMetadataTag? {
-    let pathString = path as String
-    let components = pathString.split(separator: ":")
+    let components = path.split(separator: ":")
 
     for tag in metadata.tags {
         if components.count == 2 {
@@ -112,7 +111,7 @@ public func CGImageMetadataCopyTagWithPath(
             if tag.prefix == prefix && tag.name == name {
                 return tag
             }
-        } else if tag.name == pathString {
+        } else if tag.name == path {
             return tag
         }
     }
@@ -121,23 +120,20 @@ public func CGImageMetadataCopyTagWithPath(
 }
 
 /// Returns an array of root-level metadata tags from the specified metadata object.
-public func CGImageMetadataCopyTags(_ metadata: CGImageMetadata) -> CFArray? {
+public func CGImageMetadataCopyTags(_ metadata: CGImageMetadata) -> [CGImageMetadataTag]? {
     guard !metadata.tags.isEmpty else { return nil }
-    return metadata.tags as CFArray
+    return metadata.tags
 }
 
 /// Searches for the specified image property and, if found, returns the corresponding tag object.
 public func CGImageMetadataCopyTagMatchingImageProperty(
     _ metadata: CGImageMetadata,
-    _ dictionaryName: CFString,
-    _ propertyName: CFString
+    _ dictionaryName: String,
+    _ propertyName: String
 ) -> CGImageMetadataTag? {
-    let dict = dictionaryName as String
-    let prop = propertyName as String
-
     // Map common image properties to XMP tags
     for tag in metadata.tags {
-        if tag.namespace.contains(dict) && tag.name == prop {
+        if tag.namespace.contains(dictionaryName) && tag.name == propertyName {
             return tag
         }
     }
@@ -149,14 +145,14 @@ public func CGImageMetadataCopyTagMatchingImageProperty(
 public func CGImageMetadataCopyStringValueWithPath(
     _ metadata: CGImageMetadata,
     _ parent: CGImageMetadataTag?,
-    _ path: CFString
-) -> CFString? {
+    _ path: String
+) -> String? {
     guard let tag = CGImageMetadataCopyTagWithPath(metadata, parent, path) else {
         return nil
     }
 
     if let stringValue = tag.value as? String {
-        return stringValue as CFString
+        return stringValue
     }
 
     return nil
@@ -165,20 +161,20 @@ public func CGImageMetadataCopyStringValueWithPath(
 // MARK: - CGImageMetadata Enumeration Functions
 
 /// The block to execute when enumerating the tags of a metadata object.
-public typealias CGImageMetadataTagBlock = (CFString, CGImageMetadataTag) -> Bool
+public typealias CGImageMetadataTagBlock = (String, CGImageMetadataTag) -> Bool
 
 /// Enumerates the tags of a metadata object and executes the specified block on each tag.
 public func CGImageMetadataEnumerateTagsUsingBlock(
     _ metadata: CGImageMetadata,
-    _ rootPath: CFString?,
-    _ options: CFDictionary?,
+    _ rootPath: String?,
+    _ options: [String: Any]?,
     _ block: CGImageMetadataTagBlock
 ) {
-    let recursive = (options as? [String: Any])?[kCGImageMetadataEnumerateRecursively] as? Bool ?? false
+    let recursive = options?[kCGImageMetadataEnumerateRecursively] as? Bool ?? false
     _ = recursive // Used in full implementation for nested tag enumeration
 
     for tag in metadata.tags {
-        let path = "\(tag.prefix ?? ""):\(tag.name)" as CFString
+        let path = "\(tag.prefix ?? ""):\(tag.name)"
         if !block(path, tag) {
             break
         }
@@ -193,8 +189,8 @@ public let kCGImageMetadataEnumerateRecursively: String = "kCGImageMetadataEnume
 /// Returns a data object that contains the metadata object's contents serialized into the XMP format.
 public func CGImageMetadataCreateXMPData(
     _ metadata: CGImageMetadata,
-    _ options: CFDictionary?
-) -> CFData? {
+    _ options: [String: Any]?
+) -> Data? {
     var xmp = """
     <?xpacket begin='\u{feff}' id='W5M0MpCehiHzreSzNTczkc9d'?>
     <x:xmpmeta xmlns:x='adobe:ns:meta/'>
@@ -232,8 +228,7 @@ public func CGImageMetadataCreateXMPData(
     <?xpacket end='w'?>
     """
 
-    guard let data = xmp.data(using: .utf8) else { return nil }
-    return data as CFData
+    return xmp.data(using: .utf8)
 }
 
 private func prefixForNamespace(_ namespace: String) -> String? {
@@ -264,7 +259,7 @@ private func prefixForNamespace(_ namespace: String) -> String? {
 // MARK: - CGImageMetadata Type Functions
 
 /// Returns the type identifier for metadata objects.
-public func CGImageMetadataGetTypeID() -> CFTypeID {
+public func CGImageMetadataGetTypeID() -> UInt {
     return 3 // Placeholder - actual implementation would return unique ID
 }
 
@@ -273,9 +268,9 @@ public func CGImageMetadataGetTypeID() -> CFTypeID {
 /// Registers a namespace and its prefix for use with metadata.
 public func CGImageMetadataRegisterNamespaceForPrefix(
     _ metadata: CGMutableImageMetadata,
-    _ xmlns: CFString,
-    _ prefix: CFString,
-    _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?
+    _ xmlns: String,
+    _ prefix: String,
+    _ error: UnsafeMutablePointer<Error?>?
 ) -> Bool {
     // In a full implementation, this would store namespace-prefix mappings
     return true
@@ -286,11 +281,10 @@ public func CGImageMetadataRegisterNamespaceForPrefix(
 public func CGImageMetadataSetValueWithPath(
     _ metadata: CGMutableImageMetadata,
     _ parent: CGImageMetadataTag?,
-    _ path: CFString,
+    _ path: String,
     _ value: Any
 ) -> Bool {
-    let pathString = path as String
-    let components = pathString.split(separator: ":")
+    let components = path.split(separator: ":")
 
     // Try to find existing tag
     for (index, tag) in metadata.tags.enumerated() {
@@ -300,9 +294,9 @@ public func CGImageMetadataSetValueWithPath(
             if tag.prefix == prefix && tag.name == name {
                 // Create new tag with updated value
                 if let newTag = CGImageMetadataTagCreate(
-                    tag.namespace as CFString,
-                    tag.prefix as CFString?,
-                    tag.name as CFString,
+                    tag.namespace,
+                    tag.prefix,
+                    tag.name,
                     tag.type,
                     value
                 ) {
@@ -320,9 +314,9 @@ public func CGImageMetadataSetValueWithPath(
 
         let namespace = namespaceForPrefix(prefix)
         if let tag = CGImageMetadataTagCreate(
-            namespace as CFString,
-            prefix as CFString,
-            name as CFString,
+            namespace,
+            prefix,
+            name,
             .string,
             value
         ) {
@@ -337,18 +331,15 @@ public func CGImageMetadataSetValueWithPath(
 /// Sets the value of a metadata tag that matches the specified image property.
 public func CGImageMetadataSetValueMatchingImageProperty(
     _ metadata: CGMutableImageMetadata,
-    _ dictionaryName: CFString,
-    _ propertyName: CFString,
+    _ dictionaryName: String,
+    _ propertyName: String,
     _ value: Any
 ) -> Bool {
     // Map image property to XMP tag and set value
-    let namespace = dictionaryName as String
-    let name = propertyName as String
-
     if let tag = CGImageMetadataTagCreate(
-        namespace as CFString,
-        prefixForNamespace(namespace) as CFString?,
-        name as CFString,
+        dictionaryName,
+        prefixForNamespace(dictionaryName),
+        propertyName,
         .string,
         value
     ) {
@@ -363,10 +354,9 @@ public func CGImageMetadataSetValueMatchingImageProperty(
 public func CGImageMetadataRemoveTagWithPath(
     _ metadata: CGMutableImageMetadata,
     _ parent: CGImageMetadataTag?,
-    _ path: CFString
+    _ path: String
 ) -> Bool {
-    let pathString = path as String
-    let components = pathString.split(separator: ":")
+    let components = path.split(separator: ":")
 
     for (index, tag) in metadata.tags.enumerated() {
         if components.count == 2 {
@@ -376,7 +366,7 @@ public func CGImageMetadataRemoveTagWithPath(
                 metadata.tags.remove(at: index)
                 return true
             }
-        } else if tag.name == pathString {
+        } else if tag.name == path {
             metadata.tags.remove(at: index)
             return true
         }
@@ -390,12 +380,11 @@ public func CGImageMetadataRemoveTagWithPath(
 public func CGImageMetadataSetTagWithPath(
     _ metadata: CGMutableImageMetadata,
     _ parent: CGImageMetadataTag?,
-    _ path: CFString,
+    _ path: String,
     _ tag: CGImageMetadataTag
 ) -> Bool {
     // Find and replace existing tag with same path, or add new
-    let pathString = path as String
-    let components = pathString.split(separator: ":")
+    let components = path.split(separator: ":")
 
     for (index, existingTag) in metadata.tags.enumerated() {
         if components.count == 2 {

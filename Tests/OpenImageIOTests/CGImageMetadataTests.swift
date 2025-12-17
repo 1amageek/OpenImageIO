@@ -4,6 +4,7 @@
 // Comprehensive tests for CGImageMetadata functionality
 
 import Testing
+import Foundation
 @testable import OpenImageIO
 
 // MARK: - CGImageMetadata Creation Tests
@@ -25,20 +26,20 @@ struct CGImageMetadataCreationTests {
         CGImageMetadataSetValueWithPath(
             original,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "Test Title"
         )
 
         let copy = CGImageMetadataCreateMutableCopy(original)
 
         #expect(copy != nil)
-        let value = CGImageMetadataCopyStringValueWithPath(copy!, nil, "dc:title" as CFString)
+        let value = CGImageMetadataCopyStringValueWithPath(copy!, nil, "dc:title")
         #expect(value == "Test Title")
     }
 
     @Test("Create metadata from XMP data")
     func createFromXMPData() {
-        let xmpData = Data(TestData.sampleXMP)
+        let xmpData = TestData.sampleXMP
         let metadata = CGImageMetadataCreateFromXMPData(xmpData)
 
         #expect(metadata != nil)
@@ -52,10 +53,14 @@ struct CGImageMetadataCreationTests {
         #expect(metadata == nil)
     }
 
-    @Test("Get metadata type ID")
+    @Test("Get metadata type ID returns consistent value")
     func getTypeID() {
-        let typeID = CGImageMetadataGetTypeID()
-        #expect(typeID >= 0)
+        let typeID1 = CGImageMetadataGetTypeID()
+        let typeID2 = CGImageMetadataGetTypeID()
+
+        // Verify it returns a consistent value
+        #expect(typeID1 == typeID2)
+        #expect(typeID1 >= 0)
     }
 }
 
@@ -70,11 +75,11 @@ struct CGImageMetadataTagAccessTests {
         CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "My Title"
         )
 
-        let tag = CGImageMetadataCopyTagWithPath(metadata, nil, "dc:title" as CFString)
+        let tag = CGImageMetadataCopyTagWithPath(metadata, nil, "dc:title")
 
         #expect(tag != nil)
         #expect(CGImageMetadataTagCopyName(tag!) == "title")
@@ -84,7 +89,7 @@ struct CGImageMetadataTagAccessTests {
     func copyTagWithInvalidPath() {
         let metadata = CGImageMetadataCreateMutable()
 
-        let tag = CGImageMetadataCopyTagWithPath(metadata, nil, "invalid:path" as CFString)
+        let tag = CGImageMetadataCopyTagWithPath(metadata, nil, "invalid:path")
 
         #expect(tag == nil)
     }
@@ -92,13 +97,13 @@ struct CGImageMetadataTagAccessTests {
     @Test("Copy all tags")
     func copyAllTags() {
         let metadata = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title" as CFString, "Title")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator" as CFString, "Creator")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title", "Title")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator", "Creator")
 
         let tags = CGImageMetadataCopyTags(metadata)
 
         #expect(tags != nil)
-        #expect((tags as! [CGImageMetadataTag]).count == 2)
+        #expect(tags!.count == 2)
     }
 
     @Test("Copy tags from empty metadata returns nil")
@@ -116,14 +121,14 @@ struct CGImageMetadataTagAccessTests {
         CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:description" as CFString,
+            "dc:description",
             "A description"
         )
 
         let value = CGImageMetadataCopyStringValueWithPath(
             metadata,
             nil,
-            "dc:description" as CFString
+            "dc:description"
         )
 
         #expect(value == "A description")
@@ -136,7 +141,7 @@ struct CGImageMetadataTagAccessTests {
         let value = CGImageMetadataCopyStringValueWithPath(
             metadata,
             nil,
-            "invalid:path" as CFString
+            "invalid:path"
         )
 
         #expect(value == nil)
@@ -150,14 +155,14 @@ struct CGImageMetadataTagAccessTests {
         if let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceTIFF,
             kCGImageMetadataPrefixTIFF,
-            "Make" as CFString,
+            "Make",
             .string,
             "Apple"
         ) {
             CGImageMetadataSetTagWithPath(
                 metadata,
                 nil,
-                "tiff:Make" as CFString,
+                "tiff:Make",
                 tag
             )
         }
@@ -165,7 +170,7 @@ struct CGImageMetadataTagAccessTests {
         let foundTag = CGImageMetadataCopyTagMatchingImageProperty(
             metadata,
             kCGImageMetadataNamespaceTIFF,
-            "Make" as CFString
+            "Make"
         )
 
         #expect(foundTag != nil)
@@ -184,7 +189,7 @@ struct CGMutableImageMetadataTests {
         let success = CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "Test Title"
         )
 
@@ -193,7 +198,7 @@ struct CGMutableImageMetadataTests {
         let value = CGImageMetadataCopyStringValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString
+            "dc:title"
         )
         #expect(value == "Test Title")
     }
@@ -205,21 +210,21 @@ struct CGMutableImageMetadataTests {
         CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "Original Title"
         )
 
         CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "Updated Title"
         )
 
         let value = CGImageMetadataCopyStringValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString
+            "dc:title"
         )
         #expect(value == "Updated Title")
     }
@@ -230,14 +235,14 @@ struct CGMutableImageMetadataTests {
         CGImageMetadataSetValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString,
+            "dc:title",
             "Title to Remove"
         )
 
         let removed = CGImageMetadataRemoveTagWithPath(
             metadata,
             nil,
-            "dc:title" as CFString
+            "dc:title"
         )
 
         #expect(removed == true)
@@ -245,7 +250,7 @@ struct CGMutableImageMetadataTests {
         let value = CGImageMetadataCopyStringValueWithPath(
             metadata,
             nil,
-            "dc:title" as CFString
+            "dc:title"
         )
         #expect(value == nil)
     }
@@ -257,7 +262,7 @@ struct CGMutableImageMetadataTests {
         let removed = CGImageMetadataRemoveTagWithPath(
             metadata,
             nil,
-            "dc:nonexistent" as CFString
+            "dc:nonexistent"
         )
 
         #expect(removed == false)
@@ -270,7 +275,7 @@ struct CGMutableImageMetadataTests {
         let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
-            "creator" as CFString,
+            "creator",
             .string,
             "Test Author"
         )!
@@ -278,7 +283,7 @@ struct CGMutableImageMetadataTests {
         let success = CGImageMetadataSetTagWithPath(
             metadata,
             nil,
-            "dc:creator" as CFString,
+            "dc:creator",
             tag
         )
 
@@ -287,7 +292,7 @@ struct CGMutableImageMetadataTests {
         let foundTag = CGImageMetadataCopyTagWithPath(
             metadata,
             nil,
-            "dc:creator" as CFString
+            "dc:creator"
         )
         #expect(foundTag != nil)
         #expect(CGImageMetadataTagCopyValue(foundTag!) as? String == "Test Author")
@@ -300,7 +305,7 @@ struct CGMutableImageMetadataTests {
         let success = CGImageMetadataSetValueMatchingImageProperty(
             metadata,
             kCGImageMetadataNamespaceExif,
-            "ExposureTime" as CFString,
+            "ExposureTime",
             "1/100"
         )
 
@@ -313,8 +318,8 @@ struct CGMutableImageMetadataTests {
 
         let success = CGImageMetadataRegisterNamespaceForPrefix(
             metadata,
-            "http://example.com/custom/" as CFString,
-            "custom" as CFString,
+            "http://example.com/custom/",
+            "custom",
             nil
         )
 
@@ -330,16 +335,16 @@ struct CGImageMetadataEnumerationTests {
     @Test("Enumerate tags using block")
     func enumerateTagsUsingBlock() {
         let metadata = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title" as CFString, "Title")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator" as CFString, "Creator")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject" as CFString, "Subject")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title", "Title")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator", "Creator")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject", "Subject")
 
         var enumeratedCount = 0
         var enumeratedPaths: [String] = []
 
         CGImageMetadataEnumerateTagsUsingBlock(metadata, nil, nil) { path, tag in
             enumeratedCount += 1
-            enumeratedPaths.append(path as String)
+            enumeratedPaths.append(path)
             return true // Continue enumeration
         }
 
@@ -349,9 +354,9 @@ struct CGImageMetadataEnumerationTests {
     @Test("Enumerate tags stops when block returns false")
     func enumerateTagsStopsEarly() {
         let metadata = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title" as CFString, "Title")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator" as CFString, "Creator")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject" as CFString, "Subject")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title", "Title")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator", "Creator")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject", "Subject")
 
         var enumeratedCount = 0
 
@@ -391,8 +396,8 @@ struct CGImageMetadataXMPTests {
     @Test("Create XMP data from metadata")
     func createXMPData() {
         let metadata = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title" as CFString, "Test Title")
-        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator" as CFString, "Test Creator")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:title", "Test Title")
+        CGImageMetadataSetValueWithPath(metadata, nil, "dc:creator", "Test Creator")
 
         let xmpData = CGImageMetadataCreateXMPData(metadata, nil)
 
@@ -418,7 +423,7 @@ struct CGImageMetadataXMPTests {
     @Test("XMP roundtrip")
     func xmpRoundtrip() {
         let original = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(original, nil, "dc:title" as CFString, "Roundtrip Test")
+        CGImageMetadataSetValueWithPath(original, nil, "dc:title", "Roundtrip Test")
 
         let xmpData = CGImageMetadataCreateXMPData(original, nil)
         #expect(xmpData != nil)
