@@ -55,6 +55,51 @@ struct PNGFormatTests {
 
         #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
     }
+
+    @Test("Decode PNG to CGImage")
+    func decodeToCGImage() {
+        let data = TestData.minimalPNG
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        #expect(image != nil)
+        #expect(image!.width == 1)
+        #expect(image!.height == 1)
+    }
+
+    @Test("Decode PNG with larger dimensions")
+    func decodeLargerPNG() {
+        let data = TestData.pngWithDimensions(width: 100, height: 50)
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        #expect(image != nil)
+        #expect(image!.width == 100)
+        #expect(image!.height == 50)
+    }
+
+    @Test("PNG pixel data is red")
+    func pixelDataIsRed() {
+        let data = TestData.minimalPNG
+        let source = CGImageSourceCreateWithData(data, nil)!
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        #expect(image != nil)
+
+        // Get pixel data from the decoded image
+        if let dataProvider = image!.dataProvider,
+           let pixelData = dataProvider.data {
+            let bytes = pixelData as Data
+            // PNG test data contains red pixel (RGBA: 255, 0, 0, 255)
+            #expect(bytes.count >= 4)
+            #expect(bytes[0] == 255, "Red channel should be 255")
+            #expect(bytes[1] == 0, "Green channel should be 0")
+            #expect(bytes[2] == 0, "Blue channel should be 0")
+            #expect(bytes[3] == 255, "Alpha channel should be 255")
+        }
+    }
 }
 
 // MARK: - JPEG Format Tests
@@ -98,6 +143,39 @@ struct JPEGFormatTests {
 
         #expect(props[kCGImagePropertyPixelWidth] as? Int == 8)
         #expect(props[kCGImagePropertyPixelHeight] as? Int == 8)
+    }
+
+    @Test("Decode JPEG to CGImage")
+    func decodeToCGImage() {
+        let data = TestData.minimalJPEG
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        // Try to decode - minimal JPEG may or may not decode depending on implementation
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        // Verify format detection works regardless of decode success
+        #expect(CGImageSourceGetType(source) == "public.jpeg")
+
+        // If decoding succeeds, verify dimensions
+        if let img = image {
+            #expect(img.width == 8)
+            #expect(img.height == 8)
+        }
+    }
+
+    @Test("Decode JPEG with various dimensions")
+    func decodeVariousDimensions() {
+        let jpegData = TestData.jpegWithDimensions(width: 640, height: 480)
+        let source = CGImageSourceCreateWithData(jpegData, nil)!
+
+        // Note: jpegWithDimensions creates header-only JPEG for dimension parsing
+        // Full decoding may not work with incomplete data
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        // Even if decode fails, properties should be accessible
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
+        #expect(props[kCGImagePropertyPixelWidth] as? Int == 640)
+        #expect(props[kCGImagePropertyPixelHeight] as? Int == 480)
     }
 }
 
@@ -312,6 +390,41 @@ struct WebPFormatTests {
 
         #expect(width != nil)
         #expect(height != nil)
+    }
+
+    @Test("Decode WebP to CGImage")
+    func decodeToCGImage() {
+        let data = TestData.minimalWebP
+        let source = CGImageSourceCreateWithData(data, nil)!
+
+        // Verify format detection works
+        #expect(CGImageSourceGetType(source) == "org.webmproject.webp")
+
+        // Try to decode - minimalWebP is synthetic VP8 data
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+
+        // If decoding succeeds, verify dimensions
+        if let img = image {
+            #expect(img.width == 16, "Width should be 16")
+            #expect(img.height == 16, "Height should be 16")
+        } else {
+            // Fallback: verify that properties were parsed correctly
+            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
+            let width = props[kCGImagePropertyPixelWidth] as? Int
+            let height = props[kCGImagePropertyPixelHeight] as? Int
+            #expect(width != nil, "Width should be parsed from VP8 header")
+            #expect(height != nil, "Height should be parsed from VP8 header")
+        }
+    }
+
+    @Test("WebP color model")
+    func colorModel() {
+        let data = TestData.minimalWebP
+        let source = CGImageSourceCreateWithData(data, nil)!
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
+
+        // WebP uses RGB color model
+        #expect(props[kCGImagePropertyColorModel] as? String == kCGImagePropertyColorModelRGB)
     }
 }
 

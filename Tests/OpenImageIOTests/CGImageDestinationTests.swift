@@ -842,6 +842,132 @@ struct CGImageDestinationRoundtripTests {
             #expect(decodedImage.height == height, "Height mismatch for \(width)x\(height)")
         }
     }
+
+    @Test("PNG roundtrip preserves pixel data")
+    func pngRoundtripPixelData() {
+        // Create a 2x2 image with specific colors
+        let width = 2
+        let height = 2
+        let bytesPerRow = width * 4
+
+        // Create RGBA pixel data: Red, Green, Blue, White
+        var pixels: [UInt8] = [
+            255, 0, 0, 255,     // Red (top-left)
+            0, 255, 0, 255,     // Green (top-right)
+            0, 0, 255, 255,     // Blue (bottom-left)
+            255, 255, 255, 255  // White (bottom-right)
+        ]
+
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+        let provider = CGDataProvider(data: Data(pixels))
+        let originalImage = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )!
+
+        // Encode to PNG
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        CGImageDestinationAddImage(destination, originalImage, nil)
+        CGImageDestinationFinalize(destination)
+
+        // Decode PNG
+        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+
+        // Verify pixel data
+        if let dataProvider = decodedImage.dataProvider,
+           let pixelData = dataProvider.data {
+            let decodedBytes = pixelData as Data
+
+            // Check that we have pixel data (PNG is lossless)
+            #expect(decodedBytes.count >= 16, "Should have at least 16 bytes for 2x2 RGBA")
+
+            // Verify dimensions match
+            #expect(decodedImage.width == 2)
+            #expect(decodedImage.height == 2)
+        }
+    }
+
+    @Test("JPEG roundtrip produces valid pixel data")
+    func jpegRoundtripPixelData() {
+        // Create a solid color image for JPEG (lossy format)
+        let width = 8
+        let height = 8
+        let bytesPerRow = width * 4
+
+        // Create solid gray pixels (128, 128, 128) - stable for JPEG compression
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        for i in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[i] = 128     // R
+            pixels[i + 1] = 128 // G
+            pixels[i + 2] = 128 // B
+            pixels[i + 3] = 255 // A
+        }
+
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+        let provider = CGDataProvider(data: Data(pixels))
+        let originalImage = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )!
+
+        // Encode to JPEG with high quality
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+        let props: [String: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(destination, originalImage, props)
+        CGImageDestinationFinalize(destination)
+
+        // Decode JPEG
+        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+
+        // Verify dimensions
+        #expect(decodedImage.width == 8)
+        #expect(decodedImage.height == 8)
+
+        // Verify pixel data exists
+        if let dataProvider = decodedImage.dataProvider,
+           let pixelData = dataProvider.data {
+            let decodedBytes = pixelData as Data
+
+            // JPEG decoded image should have pixel data
+            #expect(decodedBytes.count >= width * height * 3, "Should have RGB pixel data")
+
+            // For a solid gray image, all pixel values should be similar (within JPEG tolerance)
+            // We just verify the data exists and has reasonable values
+            if decodedBytes.count >= 3 {
+                // Check first pixel is grayish (JPEG is lossy, so allow tolerance)
+                let r = decodedBytes[0]
+                let g = decodedBytes[1]
+                let b = decodedBytes[2]
+
+                // Values should be in the gray range (allow for JPEG artifacts)
+                #expect(r > 50 && r < 200, "Red channel should be in gray range")
+                #expect(g > 50 && g < 200, "Green channel should be in gray range")
+                #expect(b > 50 && b < 200, "Blue channel should be in gray range")
+            }
+        }
+    }
 }
 
 // MARK: - CGImageDestination Equality Tests

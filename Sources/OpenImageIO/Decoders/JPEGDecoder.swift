@@ -496,13 +496,14 @@ internal struct JPEGDecoder {
                     }
 
                     let yVal = Double(yBuffer[yIndex])
-                    let cbVal = Double(cbBuffer[cbIndex])
-                    let crVal = Double(crBuffer[crIndex])
+                    let cbVal = Double(cbBuffer[cbIndex]) - 128.0
+                    let crVal = Double(crBuffer[crIndex]) - 128.0
 
-                    // YCbCr to RGB conversion
-                    let r = yVal + 1.402 * crVal + 128
-                    let g = yVal - 0.344136 * cbVal - 0.714136 * crVal + 128
-                    let b = yVal + 1.772 * cbVal + 128
+                    // YCbCr to RGB conversion (ITU-R BT.601 inverse)
+                    // Cb and Cr are centered at 128, so subtract 128 first
+                    let r = yVal + 1.402 * crVal
+                    let g = yVal - 0.344136 * cbVal - 0.714136 * crVal
+                    let b = yVal + 1.772 * cbVal
 
                     let dstIndex = (y * width + x) * 4
                     pixels[dstIndex] = UInt8(clamp(Int(r), 0, 255))
