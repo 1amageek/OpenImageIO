@@ -7,6 +7,16 @@
 @preconcurrency import Foundation
 import OpenCoreGraphics
 
+// MARK: - Platform Compatibility
+
+#if !canImport(Darwin)
+/// A numeric value used to represent error codes.
+public typealias OSStatus = Int32
+
+/// No error occurred.
+public let noErr: OSStatus = 0
+#endif
+
 // MARK: - Dictionary
 
 /// A dictionary of properties related to the image's on-disk file.

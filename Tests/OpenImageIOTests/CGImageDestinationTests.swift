@@ -107,7 +107,7 @@ struct CGImageDestinationCreationTests {
     @Test("Create destination with data consumer")
     func createWithDataConsumer() {
         let consumerData = NSMutableData()
-        guard let consumer = CGDataConsumer(data: consumerData) else {
+        guard let consumer = CGDataConsumer(data: consumerData as Data) else {
             #expect(Bool(false), "Failed to create data consumer")
             return
         }
@@ -413,8 +413,7 @@ struct CGImageDestinationFinalizationTests {
 
     @Test("Finalize to data consumer")
     func finalizeToDataConsumer() {
-        let consumerData = NSMutableData()
-        guard let consumer = CGDataConsumer(data: consumerData) else {
+        guard let consumer = CGDataConsumer(data: Data()) else {
             #expect(Bool(false), "Failed to create data consumer")
             return
         }
@@ -430,7 +429,7 @@ struct CGImageDestinationFinalizationTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(consumerData.length > 0)
+        #expect((consumer.data?.count ?? 0) > 0)
     }
 }
 
@@ -674,8 +673,8 @@ struct CGImageDestinationRoundtripTests {
         #expect(decodedImage!.height == 24)
     }
 
-    @Test("JPEG encoding produces valid signature")
-    func jpegEncodingProducesValidSignature() {
+    @Test("JPEG roundtrip preserves dimensions")
+    func jpegRoundtripPreservesDimensions() {
         // Create source image
         let originalImage = createTestImage(width: 64, height: 48)
 
@@ -702,9 +701,11 @@ struct CGImageDestinationRoundtripTests {
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.jpeg")
 
-        // Note: Full JPEG decoding requires complete DCT implementation.
-        // The current encoder produces a valid structure but with placeholder data.
-        // Decoding would require implementing DCT transform.
+        // Decode JPEG and verify dimensions
+        let decodedImage = CGImageSourceCreateImageAtIndex(source!, 0, nil)
+        #expect(decodedImage != nil)
+        #expect(decodedImage!.width == 64)
+        #expect(decodedImage!.height == 48)
     }
 
     @Test("GIF roundtrip preserves dimensions")

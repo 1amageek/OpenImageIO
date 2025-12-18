@@ -124,39 +124,35 @@ internal struct WebPDecoder {
         )
     }
 
-    // MARK: - VP8 Decoding (Lossy) - Basic Support
+    // MARK: - VP8 Decoding (Lossy)
 
     private static func decodeVP8(ptr: UnsafePointer<UInt8>, count: Int) -> DecodeResult? {
-        guard count >= 10 else { return nil }
+        // Use the full VP8 decoder
+        guard let result = VP8Decoder.decode(ptr: ptr, count: count) else {
+            // Fallback to placeholder if decoding fails
+            guard count >= 10 else { return nil }
 
-        // VP8 frame header (3 bytes)
-        let frameTag = UInt32(ptr[0]) | (UInt32(ptr[1]) << 8) | (UInt32(ptr[2]) << 16)
-        let isKeyFrame = (frameTag & 1) == 0
+            let frameTag = UInt32(ptr[0]) | (UInt32(ptr[1]) << 8) | (UInt32(ptr[2]) << 16)
+            let isKeyFrame = (frameTag & 1) == 0
+            guard isKeyFrame else { return nil }
 
-        guard isKeyFrame else { return nil }
+            guard ptr[3] == 0x9D && ptr[4] == 0x01 && ptr[5] == 0x2A else { return nil }
 
-        // Skip to keyframe header
-        var offset = 3
+            let widthData = UInt16(ptr[6]) | (UInt16(ptr[7]) << 8)
+            let heightData = UInt16(ptr[8]) | (UInt16(ptr[9]) << 8)
+            let width = Int(widthData & 0x3FFF)
+            let height = Int(heightData & 0x3FFF)
 
-        // Check start code (0x9D 0x01 0x2A)
-        guard offset + 7 <= count else { return nil }
-        guard ptr[offset] == 0x9D && ptr[offset + 1] == 0x01 && ptr[offset + 2] == 0x2A else {
-            return nil
+            guard width > 0 && height > 0 else { return nil }
+            return createPlaceholderImage(width: width, height: height, hasAlpha: false)
         }
-        offset += 3
 
-        // Read dimensions (little-endian, 14 bits each)
-        let widthData = UInt16(ptr[offset]) | (UInt16(ptr[offset + 1]) << 8)
-        let heightData = UInt16(ptr[offset + 2]) | (UInt16(ptr[offset + 3]) << 8)
-
-        let width = Int(widthData & 0x3FFF)
-        let height = Int(heightData & 0x3FFF)
-
-        guard width > 0 && height > 0 else { return nil }
-
-        // VP8 lossy decoding requires DCT, prediction, loop filter, etc.
-        // Return a placeholder for now
-        return createPlaceholderImage(width: width, height: height, hasAlpha: false)
+        return DecodeResult(
+            pixels: Data(result.pixels),
+            width: result.width,
+            height: result.height,
+            hasAlpha: false
+        )
     }
 
     // MARK: - Placeholder Image

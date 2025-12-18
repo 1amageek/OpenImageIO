@@ -51,12 +51,28 @@ internal struct PNGDecoder {
                 guard ptr[i] == PNG_SIGNATURE[i] else { return nil }
             }
 
-            // Parse chunks
+            // First pass: calculate total IDAT size for pre-allocation
+            var totalIdatSize = 0
+            var scanOffset = 8
+            while scanOffset + 12 <= data.count {
+                let length = Int(readUInt32BE(ptr, offset: scanOffset))
+                let chunkDataOffset = scanOffset + 8
+                guard chunkDataOffset + length <= data.count else { break }
+
+                if ptr[scanOffset + 4] == 0x49 && ptr[scanOffset + 5] == 0x44 &&
+                   ptr[scanOffset + 6] == 0x41 && ptr[scanOffset + 7] == 0x54 { // "IDAT"
+                    totalIdatSize += length
+                }
+                scanOffset += 12 + length
+            }
+
+            // Parse chunks with pre-allocated IDAT buffer
             var offset = 8
             var ihdr: IHDRChunk?
             var palette: [(r: UInt8, g: UInt8, b: UInt8)] = []
             var transparency: TransparencyInfo?
             var idatData = Data()
+            idatData.reserveCapacity(totalIdatSize)
 
             while offset + 12 <= data.count {
                 let length = Int(readUInt32BE(ptr, offset: offset))
@@ -79,7 +95,7 @@ internal struct PNGDecoder {
                     }
 
                 case "IDAT":
-                    idatData.append(Data(bytes: ptr.advanced(by: chunkDataOffset), count: length))
+                    idatData.append(UnsafeBufferPointer(start: ptr.advanced(by: chunkDataOffset), count: length))
 
                 case "IEND":
                     break

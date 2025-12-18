@@ -321,8 +321,6 @@ private func adler32(_ data: [UInt8]) -> UInt32 {
 }
 
 private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? = nil, globalProperties: [String: Any]? = nil) -> [UInt8] {
-    var output: [UInt8] = []
-
     // Get quality
     var quality: Double = 0.8
     if let q = properties?[kCGImageDestinationLossyCompressionQuality] as? Double {
@@ -330,7 +328,6 @@ private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? =
     } else if let q = globalProperties?[kCGImageDestinationLossyCompressionQuality] as? Double {
         quality = q
     }
-    _ = quality // Would be used in actual JPEG encoding
 
     guard let entry = idst.images.first else { return [] }
 
@@ -345,51 +342,12 @@ private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? =
 
     guard let img = image else { return [] }
 
-    // SOI marker
-    output.append(contentsOf: [0xFF, 0xD8])
-
-    // APP0 JFIF marker
-    output.append(contentsOf: [0xFF, 0xE0])
-    output.append(contentsOf: [0x00, 0x10]) // Length
-    output.append(contentsOf: [0x4A, 0x46, 0x49, 0x46, 0x00]) // "JFIF\0"
-    output.append(contentsOf: [0x01, 0x01]) // Version
-    output.append(0x00) // Aspect ratio units
-    output.append(contentsOf: [0x00, 0x01]) // X density
-    output.append(contentsOf: [0x00, 0x01]) // Y density
-    output.append(contentsOf: [0x00, 0x00]) // Thumbnail dimensions
-
-    // SOF0 marker (baseline DCT)
-    output.append(contentsOf: [0xFF, 0xC0])
-    output.append(contentsOf: [0x00, 0x0B]) // Length
-    output.append(0x08) // Precision
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(img.height).bigEndian) { Array($0) })
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(img.width).bigEndian) { Array($0) })
-    output.append(0x01) // Number of components
-    output.append(contentsOf: [0x01, 0x11, 0x00]) // Component info
-
-    // DHT marker (Huffman table - minimal)
-    output.append(contentsOf: [0xFF, 0xC4])
-    output.append(contentsOf: [0x00, 0x1F])
-    output.append(0x00)
-    output.append(contentsOf: [0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-    output.append(contentsOf: [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B])
-
-    // SOS marker
-    output.append(contentsOf: [0xFF, 0xDA])
-    output.append(contentsOf: [0x00, 0x08])
-    output.append(0x01) // Number of components
-    output.append(contentsOf: [0x01, 0x00])
-    output.append(contentsOf: [0x00, 0x3F, 0x00])
-
-    // Placeholder image data
-    for _ in 0..<min(100, img.width * img.height) {
-        output.append(0x00)
+    // Use the full JPEG encoder with DCT compression
+    if let encoded = JPEGEncoder.encode(image: img, quality: quality) {
+        return Array(encoded)
     }
 
-    // EOI marker
-    output.append(contentsOf: [0xFF, 0xD9])
-
-    return output
+    return []
 }
 
 private func encodeGIF(_ idst: CGImageDestination) -> [UInt8] {

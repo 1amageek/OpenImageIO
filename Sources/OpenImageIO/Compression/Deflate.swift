@@ -70,7 +70,12 @@ internal struct Deflate {
 
     /// Compress data using DEFLATE with zlib wrapper
     static func deflate(data: Data, level: Int = 6) -> Data? {
+        // Compress data first to know size
+        let compressed = deflateRaw(data: data, level: level)
+
+        // Pre-allocate output: 2 bytes header + compressed + 4 bytes checksum
         var output = Data()
+        output.reserveCapacity(2 + compressed.count + 4)
 
         // zlib header
         let cmf: UInt8 = 0x78 // CM=8 (deflate), CINFO=7 (32K window)
@@ -84,9 +89,6 @@ internal struct Deflate {
 
         output.append(cmf)
         output.append(flg)
-
-        // Compress data
-        let compressed = deflateRaw(data: data, level: level)
         output.append(compressed)
 
         // Adler-32 checksum
@@ -111,9 +113,13 @@ internal struct Deflate {
     // MARK: - Stored Blocks (No Compression)
 
     private static func deflateStore(data: Data) -> Data {
-        var output = Data()
-        var offset = 0
         let maxBlockSize = 65535
+        let numBlocks = (data.count + maxBlockSize - 1) / maxBlockSize
+        // Pre-allocate: 5 bytes header per block + data
+        var output = Data()
+        output.reserveCapacity(numBlocks * 5 + data.count)
+
+        var offset = 0
 
         while offset < data.count {
             let remaining = data.count - offset
@@ -143,7 +149,8 @@ internal struct Deflate {
     // MARK: - Fixed Huffman Encoding
 
     private static func deflateFixed(data: Data) -> Data {
-        var bitWriter = BitWriter()
+        // Estimate output size (roughly same as input for fixed Huffman)
+        var bitWriter = BitWriter(estimatedSize: data.count + 10)
 
         // Write single block with fixed Huffman
         bitWriter.writeBits(1, count: 1) // BFINAL = 1
@@ -218,7 +225,7 @@ internal struct Deflate {
 private struct Inflater {
     private let data: Data
     private var bitReader: BitReader
-    private var output: [UInt8] = []
+    private var output: [UInt8]
 
     var currentByteOffset: Int {
         return bitReader.byteOffset
@@ -227,6 +234,9 @@ private struct Inflater {
     init(data: Data, offset: Int) {
         self.data = data
         self.bitReader = BitReader(data: data, offset: offset)
+        // Pre-allocate output buffer (estimate 3x compression ratio)
+        self.output = []
+        self.output.reserveCapacity(data.count * 3)
     }
 
     mutating func inflate() -> Data? {
@@ -598,9 +608,14 @@ private struct BitReader {
 // MARK: - Bit Writer
 
 private struct BitWriter {
-    private var data: [UInt8] = []
+    private var data: [UInt8]
     private var bitBuffer: UInt32 = 0
     private var bitCount: Int = 0
+
+    init(estimatedSize: Int = 1024) {
+        self.data = []
+        self.data.reserveCapacity(estimatedSize)
+    }
 
     mutating func writeBits(_ value: UInt32, count: Int) {
         bitBuffer |= value << bitCount

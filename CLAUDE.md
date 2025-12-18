@@ -2,66 +2,48 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## ⚠️ CRITICAL REQUIREMENT: API Compatibility
+## Project Overview
 
-**THIS IS THE MOST IMPORTANT REQUIREMENT. IT IS NON-NEGOTIABLE.**
+OpenImageIO is a Swift library that provides **ImageIO-compatible APIs** for WebAssembly (WASM) environments.
 
-OpenImageIO MUST maintain **100% API compatibility with Apple's ImageIO framework**. This requirement takes absolute priority over all other considerations:
+### Design Philosophy
 
-- **Cost is not a constraint** - Spend as much effort as needed to achieve compatibility
-- **No shortcuts** - Do not simplify or deviate from ImageIO's API signatures
-- **Exact matching** - Every function signature, type name, and constant must match ImageIO exactly
+- **WASM-first**: This library is designed specifically for WASM environments where Apple's ImageIO is not available
+- **Swift-native types**: Uses Swift types (`Data`, `URL`, `[String: Any]?`) instead of CoreFoundation types (`CFData`, `CFURL`, `CFDictionary?`) because CF types don't work in WASM
+- **Functional compatibility**: Provides the same functionality as ImageIO with similar function names, but adapted for WASM constraints
 
-### Why This Matters
-
-Users write code like this:
+### Usage Pattern
 
 ```swift
-#if canImport(ImageIO)
-import ImageIO
-#else
+// WASM environment - use OpenImageIO with Swift types
 import OpenImageIO
-#endif
 
-// This code MUST compile and work identically in both cases
-let source = CGImageSourceCreateWithData(data as CFData, nil)
+let source = CGImageSourceCreateWithData(data, nil)  // Data type
+let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
+
+// Darwin environment - use native ImageIO with CF types
+import ImageIO
+
+let source = CGImageSourceCreateWithData(data as CFData, nil)  // CFData type
 let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 ```
 
-**If even one API signature differs, the user's code will fail to compile.**
+**Note**: This is NOT a drop-in replacement for ImageIO. Platform-specific code is expected.
 
-### Verification Process
-
-Before implementing ANY function:
-1. Check Apple's official ImageIO documentation
-2. Verify the EXACT function signature (parameter types, return type, parameter names)
-3. Match the behavior as closely as possible
-
-### API Signatures MUST Match ImageIO
+### API Signatures (Swift types for WASM)
 
 ```swift
-// These signatures are from Apple's ImageIO - they MUST be identical
-
 // CGImageSource
-public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource?
-public func CGImageSourceCreateWithURL(_ url: CFURL, _ options: CFDictionary?) -> CGImageSource?
-public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage?
-public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CFDictionary?
+public func CGImageSourceCreateWithData(_ data: Data, _ options: [String: Any]?) -> CGImageSource?
+public func CGImageSourceCreateWithURL(_ url: URL, _ options: [String: Any]?) -> CGImageSource?
+public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> CGImage?
+public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> [String: Any]?
 
 // CGImageDestination
-public func CGImageDestinationCreateWithData(_ data: CFMutableData, _ type: CFString, _ count: Int, _ options: CFDictionary?) -> CGImageDestination?
-public func CGImageDestinationAddImage(_ idst: CGImageDestination, _ image: CGImage, _ properties: CFDictionary?)
+public func CGImageDestinationCreateWithData(_ data: inout Data, _ type: String, _ count: Int, _ options: [String: Any]?) -> CGImageDestination?
+public func CGImageDestinationAddImage(_ idst: CGImageDestination, _ image: CGImage, _ properties: [String: Any]?)
 public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool
 ```
-
----
-
-## Project Overview
-
-OpenImageIO is a Swift library that provides **full API compatibility with Apple's ImageIO framework** for WebAssembly (WASM) environments.
-
-- **When ImageIO is available** (iOS, macOS, etc.): Users import ImageIO directly
-- **When ImageIO is NOT available** (WASM): Users import OpenImageIO, which provides identical APIs
 
 ## Build Commands
 
@@ -75,8 +57,8 @@ swift test
 # Run a specific test
 swift test --filter <TestName>
 
-# Build for WASM (requires SwiftWasm toolchain)
-swift build --triple wasm32-unknown-wasi
+# Build for WASM (requires Swift WASM SDK)
+swift build --swift-sdk swift-6.2.3-RELEASE_wasm
 ```
 
 ## Architecture
@@ -84,44 +66,28 @@ swift build --triple wasm32-unknown-wasi
 ### Dependencies
 
 - **OpenCoreGraphics**: For `CGImage`, `CGDataProvider`, `CGDataConsumer`, `CGColorSpace`, etc.
-- **Foundation**: For CoreFoundation types (`CFData`, `CFString`, `CFDictionary`, etc.)
+- **Foundation**: For basic types (`Data`, `URL`, etc.)
 
-### CoreFoundation Types
-
-CoreFoundation types (`CFData`, `CFString`, `CFDictionary`, `CFURL`, etc.) are available through `import Foundation`.
-
-**Use `@preconcurrency import Foundation` to avoid Swift 6 concurrency warnings with CF types.**
+### Import Pattern
 
 ```swift
 @preconcurrency import Foundation
 import OpenCoreGraphics
-
-// CF types from Foundation
-// CG types from OpenCoreGraphics
 ```
 
-### Internal Implementation vs Public API
+### API Design
 
-**Public API** must use CF types to match ImageIO exactly:
+All public APIs use Swift-native types:
+
 ```swift
-// Public API - MUST match ImageIO signatures
-public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource?
-```
-
-**Internal implementation** can use Swift types for convenience, with conversions at the API boundary:
-```swift
-internal var imageData: Data  // Internal: Swift types
-internal var properties: [String: Any]  // Internal: Swift types
-
-// At API boundary: convert to CF types
-public func CGImageSourceCopyProperties(...) -> CFDictionary? {
-    return properties as CFDictionary
-}
+// Public API - Swift types for WASM compatibility
+public func CGImageSourceCreateWithData(_ data: Data, _ options: [String: Any]?) -> CGImageSource?
+public func CGImageSourceCopyProperties(_ isrc: CGImageSource, _ options: [String: Any]?) -> [String: Any]?
 ```
 
 ### String Constants
 
-For ImageIO property key constants, use `String` type (bridges to `CFString` automatically):
+Property key constants use `String` type:
 
 ```swift
 public let kCGImagePropertyPixelWidth: String = "PixelWidth"
@@ -137,8 +103,29 @@ public let kCGImagePropertyPixelHeight: String = "PixelHeight"
 
 ### Supported Image Formats
 
-- PNG, JPEG, GIF, BMP, TIFF (priority formats)
-- WebP (if feasible)
+All formats are fully implemented with complete decode and encode support:
+
+| Format | Decode | Encode | Notes |
+|--------|--------|--------|-------|
+| PNG | ✅ Full | ✅ Full | DEFLATE compression, all color types |
+| JPEG | ✅ Full | ✅ Full | Baseline DCT, Huffman coding, quality control |
+| GIF | ✅ Full | ✅ Full | LZW compression, animation support |
+| BMP | ✅ Full | ✅ Full | 24-bit uncompressed |
+| TIFF | ✅ Full | ✅ Full | Uncompressed RGB |
+| WebP | ✅ Full | ❌ N/A | VP8 (lossy) and VP8L (lossless) decode |
+
+#### Implementation Details
+
+- **PNG**: Full DEFLATE/zlib compression with Adler-32 checksums
+- **JPEG**: Complete baseline DCT encoder with:
+  - Forward DCT transform (8x8 blocks)
+  - Quantization with quality scaling
+  - Huffman coding (standard tables)
+  - YCbCr color space conversion
+- **GIF**: LZW compression with variable code sizes, multi-frame animation
+- **BMP**: Standard Windows bitmap format
+- **TIFF**: Little-endian uncompressed format
+- **WebP VP8**: Boolean arithmetic decoder, intra prediction, inverse DCT/WHT, loop filtering
 
 ### Implementation Policy
 

@@ -32,7 +32,9 @@ internal struct PNGEncoder {
         // Get pixel data
         guard let imageData = image.dataProvider?.data else { return nil }
 
+        // Pre-allocate output buffer (estimate: header + compressed data < raw data)
         var output = Data()
+        output.reserveCapacity(8 + 25 + imageData.count / 2) // signature + IHDR + estimated IDAT
 
         // PNG Signature
         output.append(contentsOf: PNG_SIGNATURE)
@@ -54,8 +56,9 @@ internal struct PNGEncoder {
         ihdr.append(0) // Interlace method (none)
         output.append(contentsOf: createChunk(type: "IHDR", data: ihdr))
 
-        // Prepare filtered image data
+        // Prepare filtered image data with pre-allocation
         var filteredData: [UInt8] = []
+        filteredData.reserveCapacity(height * (1 + width * bytesPerPixel)) // filter byte + row data per line
 
         // Use adaptive filtering for better compression
         var previousRow = [UInt8](repeating: 0, count: width * bytesPerPixel)
@@ -227,7 +230,6 @@ internal struct PNGEncoder {
         // IHDR
         let hasAlpha = imageHasAlpha(image)
         let colorType: UInt8 = hasAlpha ? 6 : 2
-        let bytesPerPixel = hasAlpha ? 4 : 3
 
         var ihdr: [UInt8] = []
         ihdr.append(contentsOf: withUnsafeBytes(of: UInt32(width).bigEndian) { Array($0) })

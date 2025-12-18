@@ -137,15 +137,14 @@ struct CGDataConsumerTests {
     @Test("Create CGDataConsumer with data")
     func createConsumerWithData() {
         let data = NSMutableData()
-        let consumer = CGDataConsumer(data: data)
+        let consumer = CGDataConsumer(data: data as Data)
 
         #expect(consumer != nil)
     }
 
     @Test("Write to CGDataConsumer")
     func writeToConsumer() {
-        let data = NSMutableData()
-        guard let consumer = CGDataConsumer(data: data) else {
+        guard let consumer = CGDataConsumer(data: Data()) else {
             #expect(Bool(false), "Failed to create consumer")
             return
         }
@@ -158,15 +157,15 @@ struct CGDataConsumerTests {
             _ = consumer.putBytes(buffer.baseAddress, count: buffer.count)
         }
 
-        #expect(Data(referencing: data) == Data([0x01, 0x02, 0x03, 0x04]))
+        #expect(consumer.data == Data([0x01, 0x02, 0x03, 0x04]))
     }
 
     @Test("CGDataConsumer is equatable by identity")
     func isEquatableByIdentity() {
         let data1 = NSMutableData()
         let data2 = NSMutableData()
-        guard let consumer1 = CGDataConsumer(data: data1),
-              let consumer2 = CGDataConsumer(data: data2) else {
+        guard let consumer1 = CGDataConsumer(data: data1 as Data),
+              let consumer2 = CGDataConsumer(data: data2 as Data) else {
             #expect(Bool(false), "Failed to create consumers")
             return
         }
@@ -178,7 +177,7 @@ struct CGDataConsumerTests {
     @Test("CGDataConsumer is hashable")
     func isHashable() {
         let data = NSMutableData()
-        guard let consumer = CGDataConsumer(data: data) else {
+        guard let consumer = CGDataConsumer(data: data as Data) else {
             #expect(Bool(false), "Failed to create consumer")
             return
         }
