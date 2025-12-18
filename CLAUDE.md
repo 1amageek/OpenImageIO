@@ -109,10 +109,10 @@ All formats are fully implemented with complete decode and encode support:
 |--------|--------|--------|-------|
 | PNG | ✅ Full | ✅ Full | DEFLATE compression, all color types |
 | JPEG | ✅ Full | ✅ Full | Baseline DCT, Huffman coding, quality control |
-| GIF | ✅ Full | ✅ Full | LZW compression, animation support |
-| BMP | ✅ Full | ✅ Full | 24-bit uncompressed |
-| TIFF | ✅ Full | ✅ Full | Uncompressed RGB |
-| WebP | ✅ Full | ❌ N/A | VP8 (lossy) and VP8L (lossless) decode |
+| GIF | ✅ Full | ✅ Full | LZW compression, Median Cut quantization, animation |
+| BMP | ✅ Full | ✅ Full | 24-bit BGR, 32-bit BGRA with alpha support |
+| TIFF | ✅ Full | ✅ Full | Uncompressed RGB/RGBA, multi-page support |
+| WebP | ✅ Full | ✅ Full | VP8 (lossy) and VP8L (lossless) encode/decode |
 
 #### Implementation Details
 
@@ -123,9 +123,20 @@ All formats are fully implemented with complete decode and encode support:
   - Huffman coding (standard tables)
   - YCbCr color space conversion
 - **GIF**: LZW compression with variable code sizes, multi-frame animation
-- **BMP**: Standard Windows bitmap format
-- **TIFF**: Little-endian uncompressed format
-- **WebP VP8**: Boolean arithmetic decoder, intra prediction, inverse DCT/WHT, loop filtering
+- **BMP**: Standard Windows bitmap format with:
+  - 24-bit BGR (BITMAPINFOHEADER)
+  - 32-bit BGRA with alpha channel (BITMAPV4HEADER)
+- **TIFF**: Little-endian format with:
+  - Uncompressed RGB/RGBA data
+  - Multi-page (multi-IFD) support
+  - Resolution metadata
+- **WebP**: Full encode/decode support:
+  - VP8L (lossless): LZ77 matching, Huffman coding, subtract-green transform
+  - VP8 (lossy): DCT transform, quantization, boolean arithmetic coding
+  - RIFF container format
+- **GIF**: Advanced color quantization:
+  - Median Cut algorithm for optimal palette selection
+  - Floyd-Steinberg dithering (available via ColorQuantizer)
 
 ### Implementation Policy
 

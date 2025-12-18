@@ -222,6 +222,10 @@ internal struct JPEGEncoder {
         let bitsPerPixel = image.bitsPerPixel
         let bytesPerPixel = bitsPerPixel / 8
 
+        // Detect pixel format
+        let alphaInfo = CGImageAlphaInfo(rawValue: image.bitmapInfo.rawValue & CGBitmapInfo.alphaInfoMask.rawValue)
+        let isARGB = (alphaInfo == .premultipliedFirst || alphaInfo == .first || alphaInfo == .noneSkipFirst)
+
         var pixels = [UInt8](repeating: 0, count: width * height * 3)
 
         for y in 0..<height {
@@ -229,11 +233,37 @@ internal struct JPEGEncoder {
                 let srcIdx = y * bytesPerRow + x * bytesPerPixel
                 let dstIdx = (y * width + x) * 3
 
-                if srcIdx + 2 < data.count {
-                    pixels[dstIdx] = data[srcIdx]         // R
-                    pixels[dstIdx + 1] = data[srcIdx + 1] // G
-                    pixels[dstIdx + 2] = data[srcIdx + 2] // B
+                // Extract RGB values based on source format
+                var r: UInt8 = 0, g: UInt8 = 0, b: UInt8 = 0
+
+                if bytesPerPixel == 4 && srcIdx + 3 < data.count {
+                    if isARGB {
+                        // ARGB format
+                        r = data[srcIdx + 1]
+                        g = data[srcIdx + 2]
+                        b = data[srcIdx + 3]
+                    } else {
+                        // RGBA format (default)
+                        r = data[srcIdx]
+                        g = data[srcIdx + 1]
+                        b = data[srcIdx + 2]
+                    }
+                } else if bytesPerPixel == 3 && srcIdx + 2 < data.count {
+                    // RGB format (no alpha)
+                    r = data[srcIdx]
+                    g = data[srcIdx + 1]
+                    b = data[srcIdx + 2]
+                } else if bytesPerPixel == 1 && srcIdx < data.count {
+                    // Grayscale
+                    let gray = data[srcIdx]
+                    r = gray
+                    g = gray
+                    b = gray
                 }
+
+                pixels[dstIdx] = r
+                pixels[dstIdx + 1] = g
+                pixels[dstIdx + 2] = b
             }
         }
 
@@ -578,7 +608,7 @@ private struct BitWriter {
 
     mutating func write(bits: Int, count: Int) {
         var remaining = count
-        var value = bits
+        let value = bits
 
         while remaining > 0 {
             let bitsToWrite = min(remaining, bitPosition + 1)

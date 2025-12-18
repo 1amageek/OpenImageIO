@@ -198,7 +198,8 @@ public func CGImageDestinationCopyTypeIdentifiers() -> [String] {
         "public.jpeg",
         "com.compuserve.gif",
         "com.microsoft.bmp",
-        "public.tiff"
+        "public.tiff",
+        "org.webmproject.webp"
     ]
 }
 
@@ -221,6 +222,8 @@ private func encodeImages(_ idst: CGImageDestination) -> [UInt8] {
         return encodeBMP(idst)
     case "public.tiff":
         return encodeTIFF(idst)
+    case "org.webmproject.webp":
+        return encodeWebP(idst)
     default:
         return []
     }
@@ -393,60 +396,50 @@ private func encodeBMP(_ idst: CGImageDestination) -> [UInt8] {
 
     guard let img = image else { return [] }
 
-    var output: [UInt8] = []
-
-    let width = img.width
-    let height = img.height
-    let rowSize = ((width * 3 + 3) / 4) * 4 // Row size must be multiple of 4
-    let imageSize = rowSize * height
-    let fileSize = 54 + imageSize // Header + pixel data
-
-    // BMP Header
-    output.append(contentsOf: [0x42, 0x4D]) // "BM"
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(fileSize).littleEndian) { Array($0) })
-    output.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // Reserved
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(54).littleEndian) { Array($0) }) // Data offset
-
-    // DIB Header (BITMAPINFOHEADER)
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(40).littleEndian) { Array($0) }) // Header size
-    output.append(contentsOf: withUnsafeBytes(of: Int32(width).littleEndian) { Array($0) }) // Width
-    output.append(contentsOf: withUnsafeBytes(of: Int32(height).littleEndian) { Array($0) }) // Height (positive = bottom-up)
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) }) // Color planes
-    output.append(contentsOf: withUnsafeBytes(of: UInt16(24).littleEndian) { Array($0) }) // Bits per pixel
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(0).littleEndian) { Array($0) }) // Compression (none)
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(imageSize).littleEndian) { Array($0) }) // Image size
-    output.append(contentsOf: withUnsafeBytes(of: Int32(2835).littleEndian) { Array($0) }) // X pixels per meter
-    output.append(contentsOf: withUnsafeBytes(of: Int32(2835).littleEndian) { Array($0) }) // Y pixels per meter
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(0).littleEndian) { Array($0) }) // Colors used
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(0).littleEndian) { Array($0) }) // Important colors
-
-    // Pixel Data (BGR format)
-    guard let imageData = img.dataProvider?.data else { return output }
-
-    for y in 0..<img.height {
-        for x in 0..<img.width {
-            let srcIndex = y * img.bytesPerRow + x * 4
-            if srcIndex + 2 < imageData.count {
-                output.append(imageData[srcIndex + 2]) // B
-                output.append(imageData[srcIndex + 1]) // G
-                output.append(imageData[srcIndex])     // R
-            } else {
-                output.append(contentsOf: [0, 0, 0])
-            }
-        }
-        // Padding
-        let padding = rowSize - img.width * 3
-        for _ in 0..<padding {
-            output.append(0)
-        }
+    // Merge properties
+    var options = idst.globalProperties ?? [:]
+    if let entryProps = entry.properties {
+        options.merge(entryProps) { _, new in new }
     }
 
-    return output
+    // Use BMPEncoder
+    if let encoded = BMPEncoder.encode(image: img, options: options) {
+        return Array(encoded)
+    }
+
+    return []
 }
 
 private func encodeTIFF(_ idst: CGImageDestination) -> [UInt8] {
-    var output: [UInt8] = []
+    // Collect all images for multi-page TIFF
+    var images: [CGImage] = []
 
+    for entry in idst.images {
+        let frameImage: CGImage?
+        if let img = entry.image {
+            frameImage = img
+        } else if let source = entry.imageSource {
+            frameImage = CGImageSourceCreateImageAtIndex(source, entry.sourceIndex, nil)
+        } else {
+            continue
+        }
+
+        if let frame = frameImage {
+            images.append(frame)
+        }
+    }
+
+    guard !images.isEmpty else { return [] }
+
+    // Use TIFFEncoder with multi-page support
+    if let encoded = TIFFEncoder.encode(images: images, options: idst.globalProperties) {
+        return Array(encoded)
+    }
+
+    return []
+}
+
+private func encodeWebP(_ idst: CGImageDestination) -> [UInt8] {
     guard let entry = idst.images.first else { return [] }
 
     let image: CGImage?
@@ -460,64 +453,27 @@ private func encodeTIFF(_ idst: CGImageDestination) -> [UInt8] {
 
     guard let img = image else { return [] }
 
-    // TIFF Header (little-endian)
-    output.append(contentsOf: [0x49, 0x49]) // Little-endian
-    output.append(contentsOf: [0x2A, 0x00]) // Magic number
-    output.append(contentsOf: withUnsafeBytes(of: UInt32(8).littleEndian) { Array($0) }) // IFD offset
-
-    // IFD entries
-    let numEntries: UInt16 = 8
-    output.append(contentsOf: withUnsafeBytes(of: numEntries.littleEndian) { Array($0) })
-
-    let dataOffset = 8 + 2 + Int(numEntries) * 12 + 4 // Header + count + entries + next IFD
-    _ = dataOffset
-
-    // ImageWidth (256)
-    output.append(contentsOf: createTIFFEntry(tag: 256, type: 3, count: 1, value: UInt32(img.width)))
-    // ImageLength (257)
-    output.append(contentsOf: createTIFFEntry(tag: 257, type: 3, count: 1, value: UInt32(img.height)))
-    // BitsPerSample (258)
-    output.append(contentsOf: createTIFFEntry(tag: 258, type: 3, count: 1, value: 8))
-    // Compression (259) - no compression
-    output.append(contentsOf: createTIFFEntry(tag: 259, type: 3, count: 1, value: 1))
-    // PhotometricInterpretation (262) - RGB
-    output.append(contentsOf: createTIFFEntry(tag: 262, type: 3, count: 1, value: 2))
-    // StripOffsets (273)
-    output.append(contentsOf: createTIFFEntry(tag: 273, type: 4, count: 1, value: UInt32(8 + 2 + numEntries * 12 + 4)))
-    // SamplesPerPixel (277)
-    output.append(contentsOf: createTIFFEntry(tag: 277, type: 3, count: 1, value: 3))
-    // RowsPerStrip (278)
-    output.append(contentsOf: createTIFFEntry(tag: 278, type: 3, count: 1, value: UInt32(img.height)))
-
-    // Next IFD offset (0 = no more IFDs)
-    output.append(contentsOf: [0x00, 0x00, 0x00, 0x00])
-
-    // Pixel Data (RGB)
-    guard let imageData = img.dataProvider?.data else { return output }
-
-    for y in 0..<img.height {
-        for x in 0..<img.width {
-            let srcIndex = y * img.bytesPerRow + x * 4
-            if srcIndex + 2 < imageData.count {
-                output.append(imageData[srcIndex])     // R
-                output.append(imageData[srcIndex + 1]) // G
-                output.append(imageData[srcIndex + 2]) // B
-            } else {
-                output.append(contentsOf: [0, 0, 0])
-            }
-        }
+    // Merge properties
+    var options = idst.globalProperties ?? [:]
+    if let entryProps = entry.properties {
+        options.merge(entryProps) { _, new in new }
     }
 
-    return output
-}
+    // Check for quality setting to determine lossy/lossless
+    if let quality = options[kCGImageDestinationLossyCompressionQuality] as? Double {
+        options["lossless"] = false
+        options["quality"] = quality
+    } else if options["lossless"] == nil {
+        // Default to lossless for best quality
+        options["lossless"] = true
+    }
 
-private func createTIFFEntry(tag: UInt16, type: UInt16, count: UInt32, value: UInt32) -> [UInt8] {
-    var entry: [UInt8] = []
-    entry.append(contentsOf: withUnsafeBytes(of: tag.littleEndian) { Array($0) })
-    entry.append(contentsOf: withUnsafeBytes(of: type.littleEndian) { Array($0) })
-    entry.append(contentsOf: withUnsafeBytes(of: count.littleEndian) { Array($0) })
-    entry.append(contentsOf: withUnsafeBytes(of: value.littleEndian) { Array($0) })
-    return entry
+    // Use WebPEncoder
+    if let encoded = WebPEncoder.encode(image: img, options: options) {
+        return Array(encoded)
+    }
+
+    return []
 }
 
 // MARK: - CGImageDestination Options Keys

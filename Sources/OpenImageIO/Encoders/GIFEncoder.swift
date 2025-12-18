@@ -40,22 +40,51 @@ internal struct GIFEncoder {
         var allPixels: [[UInt8]] = []
         for image in images {
             guard let imageData = image.dataProvider?.data else { continue }
+
+            // Determine source pixel format
+            let srcBytesPerPixel = image.bitsPerPixel / 8
+            let srcAlphaInfo = CGImageAlphaInfo(rawValue: image.bitmapInfo.rawValue & CGBitmapInfo.alphaInfoMask.rawValue)
+            let srcIsARGB = (srcAlphaInfo == .premultipliedFirst || srcAlphaInfo == .first || srcAlphaInfo == .noneSkipFirst)
+
             var pixels: [UInt8] = []
             for y in 0..<image.height {
                 for x in 0..<image.width {
-                    let srcIndex = (y * image.bytesPerRow) + (x * 4)
-                    if srcIndex + 3 < imageData.count {
-                        pixels.append(imageData[srcIndex])     // R
-                        pixels.append(imageData[srcIndex + 1]) // G
-                        pixels.append(imageData[srcIndex + 2]) // B
+                    let srcIndex = (y * image.bytesPerRow) + (x * srcBytesPerPixel)
+
+                    // Extract RGB values based on source format
+                    var r: UInt8 = 0, g: UInt8 = 0, b: UInt8 = 0
+
+                    if srcBytesPerPixel == 4 && srcIndex + 3 < imageData.count {
+                        if srcIsARGB {
+                            r = imageData[srcIndex + 1]
+                            g = imageData[srcIndex + 2]
+                            b = imageData[srcIndex + 3]
+                        } else {
+                            r = imageData[srcIndex]
+                            g = imageData[srcIndex + 1]
+                            b = imageData[srcIndex + 2]
+                        }
+                    } else if srcBytesPerPixel == 3 && srcIndex + 2 < imageData.count {
+                        r = imageData[srcIndex]
+                        g = imageData[srcIndex + 1]
+                        b = imageData[srcIndex + 2]
+                    } else if srcBytesPerPixel == 1 && srcIndex < imageData.count {
+                        let gray = imageData[srcIndex]
+                        r = gray
+                        g = gray
+                        b = gray
                     }
+
+                    pixels.append(r)
+                    pixels.append(g)
+                    pixels.append(b)
                 }
             }
             allPixels.append(pixels)
         }
 
-        // Build global color table (simple median cut quantization)
-        let (colorTable, colorCount) = buildColorTable(allPixels)
+        // Build global color table using Median Cut quantization
+        let (colorTable, colorCount) = buildColorTable(allPixels, width: width, height: height)
 
         var output = Data()
 
@@ -97,7 +126,7 @@ internal struct GIFEncoder {
         }
 
         // Encode each frame
-        for (index, image) in images.enumerated() {
+        for (_, image) in images.enumerated() {
             guard let imageData = image.dataProvider?.data else { continue }
 
             // Graphic Control Extension
@@ -127,7 +156,7 @@ internal struct GIFEncoder {
             output.append(0x00) // Packed byte (no local color table)
 
             // Quantize pixels to color indices
-            var indexedPixels = quantizeImage(imageData: imageData, image: image, colorTable: colorTable)
+            let indexedPixels = quantizeImage(imageData: imageData, image: image, colorTable: colorTable)
 
             // LZW encode
             let minCodeSize: UInt8 = 8
@@ -153,8 +182,65 @@ internal struct GIFEncoder {
 
     // MARK: - Color Quantization
 
-    private static func buildColorTable(_ allPixels: [[UInt8]]) -> ([UInt8], Int) {
-        // Simple approach: collect unique colors up to 256
+    private static func buildColorTable(_ allPixels: [[UInt8]], width: Int, height: Int) -> ([UInt8], Int) {
+        // Combine all pixels for quantization
+        var combinedPixels: [UInt8] = []
+        for pixels in allPixels {
+            combinedPixels.append(contentsOf: pixels)
+        }
+
+        // Count unique colors first
+        var uniqueColors = Set<UInt32>()
+        for i in stride(from: 0, to: combinedPixels.count, by: 3) {
+            let colorKey = (UInt32(combinedPixels[i]) << 16) |
+                          (UInt32(combinedPixels[i + 1]) << 8) |
+                          UInt32(combinedPixels[i + 2])
+            uniqueColors.insert(colorKey)
+            if uniqueColors.count > 256 { break }
+        }
+
+        // If <= 256 unique colors, use them directly (better quality)
+        if uniqueColors.count <= 256 {
+            var colorTable: [UInt8] = []
+            for color in uniqueColors {
+                colorTable.append(UInt8((color >> 16) & 0xFF))
+                colorTable.append(UInt8((color >> 8) & 0xFF))
+                colorTable.append(UInt8(color & 0xFF))
+            }
+            let targetCount = nextPowerOf2(uniqueColors.count)
+            while colorTable.count < targetCount * 3 {
+                colorTable.append(0)
+            }
+            return (colorTable, targetCount)
+        }
+
+        // Use Median Cut quantization for > 256 colors
+        let totalWidth = width
+        let totalHeight = height * allPixels.count
+
+        guard let (palette, _) = MedianCutQuantizer.quantize(
+            pixels: combinedPixels,
+            width: totalWidth,
+            height: totalHeight,
+            maxColors: 256
+        ) else {
+            // Fallback to simple approach
+            return buildSimpleColorTable(allPixels)
+        }
+
+        let colorCount = palette.count / 3
+        let targetCount = nextPowerOf2(colorCount)
+
+        var colorTable = palette
+        while colorTable.count < targetCount * 3 {
+            colorTable.append(0)
+        }
+
+        return (colorTable, targetCount)
+    }
+
+    private static func buildSimpleColorTable(_ allPixels: [[UInt8]]) -> ([UInt8], Int) {
+        // Fallback: collect first 256 unique colors
         var uniqueColors = Set<UInt32>()
 
         for pixels in allPixels {
@@ -163,26 +249,19 @@ internal struct GIFEncoder {
                 let colorKey = (UInt32(pixels[i]) << 16) | (UInt32(pixels[i + 1]) << 8) | UInt32(pixels[i + 2])
                 uniqueColors.insert(colorKey)
                 i += 3
-
-                // Stop if we have enough colors
                 if uniqueColors.count >= 256 { break }
             }
             if uniqueColors.count >= 256 { break }
         }
 
-        // Convert to color table
         var colorTable: [UInt8] = []
-        var colorCount = 0
-
         for color in uniqueColors.prefix(256) {
-            colorTable.append(UInt8((color >> 16) & 0xFF)) // R
-            colorTable.append(UInt8((color >> 8) & 0xFF))  // G
-            colorTable.append(UInt8(color & 0xFF))         // B
-            colorCount += 1
+            colorTable.append(UInt8((color >> 16) & 0xFF))
+            colorTable.append(UInt8((color >> 8) & 0xFF))
+            colorTable.append(UInt8(color & 0xFF))
         }
 
-        // Pad to power of 2
-        let targetCount = nextPowerOf2(colorCount)
+        let targetCount = nextPowerOf2(uniqueColors.count)
         while colorTable.count < targetCount * 3 {
             colorTable.append(0)
         }
@@ -193,28 +272,51 @@ internal struct GIFEncoder {
     private static func quantizeImage(imageData: Data, image: CGImage, colorTable: [UInt8]) -> [UInt8] {
         var indexed: [UInt8] = []
 
+        // Determine source pixel format
+        let srcBytesPerPixel = image.bitsPerPixel / 8
+        let srcAlphaInfo = CGImageAlphaInfo(rawValue: image.bitmapInfo.rawValue & CGBitmapInfo.alphaInfoMask.rawValue)
+        let srcIsARGB = (srcAlphaInfo == .premultipliedFirst || srcAlphaInfo == .first || srcAlphaInfo == .noneSkipFirst)
+        let srcHasAlpha = hasTransparency(image)
+
         for y in 0..<image.height {
             for x in 0..<image.width {
-                let srcIndex = (y * image.bytesPerRow) + (x * 4)
+                let srcIndex = (y * image.bytesPerRow) + (x * srcBytesPerPixel)
 
-                if srcIndex + 3 < imageData.count {
-                    let r = imageData[srcIndex]
-                    let g = imageData[srcIndex + 1]
-                    let b = imageData[srcIndex + 2]
-                    let a = imageData[srcIndex + 3]
+                // Extract RGBA values based on source format
+                var r: UInt8 = 0, g: UInt8 = 0, b: UInt8 = 0, a: UInt8 = 255
 
-                    // If transparent, use transparent color index
-                    if a < 128 {
-                        indexed.append(0xFF)
-                        continue
+                if srcBytesPerPixel == 4 && srcIndex + 3 < imageData.count {
+                    if srcIsARGB {
+                        a = imageData[srcIndex]
+                        r = imageData[srcIndex + 1]
+                        g = imageData[srcIndex + 2]
+                        b = imageData[srcIndex + 3]
+                    } else {
+                        r = imageData[srcIndex]
+                        g = imageData[srcIndex + 1]
+                        b = imageData[srcIndex + 2]
+                        a = imageData[srcIndex + 3]
                     }
-
-                    // Find closest color in palette
-                    let colorIndex = findClosestColor(r: r, g: g, b: b, colorTable: colorTable)
-                    indexed.append(UInt8(colorIndex))
-                } else {
-                    indexed.append(0)
+                } else if srcBytesPerPixel == 3 && srcIndex + 2 < imageData.count {
+                    r = imageData[srcIndex]
+                    g = imageData[srcIndex + 1]
+                    b = imageData[srcIndex + 2]
+                } else if srcBytesPerPixel == 1 && srcIndex < imageData.count {
+                    let gray = imageData[srcIndex]
+                    r = gray
+                    g = gray
+                    b = gray
                 }
+
+                // If transparent, use transparent color index
+                if srcHasAlpha && a < 128 {
+                    indexed.append(0xFF)
+                    continue
+                }
+
+                // Find closest color in palette
+                let colorIndex = findClosestColor(r: r, g: g, b: b, colorTable: colorTable)
+                indexed.append(UInt8(colorIndex))
             }
         }
 

@@ -39,11 +39,17 @@ internal struct PNGEncoder {
         // PNG Signature
         output.append(contentsOf: PNG_SIGNATURE)
 
-        // Determine color type and bit depth
-        let hasAlpha = imageHasAlpha(image)
+        // Determine source pixel format
+        let srcBytesPerPixel = image.bitsPerPixel / 8
+        let srcHasAlpha = imageHasAlpha(image)
+        let srcAlphaInfo = CGImageAlphaInfo(rawValue: image.bitmapInfo.rawValue & CGBitmapInfo.alphaInfoMask.rawValue)
+        let srcIsARGB = (srcAlphaInfo == .premultipliedFirst || srcAlphaInfo == .first || srcAlphaInfo == .noneSkipFirst)
+
+        // Determine output color type and bit depth
+        let hasAlpha = srcHasAlpha
         let colorType: UInt8 = hasAlpha ? 6 : 2 // 6 = RGBA, 2 = RGB
         let bitDepth: UInt8 = 8
-        let bytesPerPixel = hasAlpha ? 4 : 3
+        let dstBytesPerPixel = hasAlpha ? 4 : 3
 
         // IHDR chunk
         var ihdr: [UInt8] = []
@@ -58,26 +64,54 @@ internal struct PNGEncoder {
 
         // Prepare filtered image data with pre-allocation
         var filteredData: [UInt8] = []
-        filteredData.reserveCapacity(height * (1 + width * bytesPerPixel)) // filter byte + row data per line
+        filteredData.reserveCapacity(height * (1 + width * dstBytesPerPixel)) // filter byte + row data per line
 
         // Use adaptive filtering for better compression
-        var previousRow = [UInt8](repeating: 0, count: width * bytesPerPixel)
+        var previousRow = [UInt8](repeating: 0, count: width * dstBytesPerPixel)
 
         for y in 0..<height {
-            var currentRow = [UInt8](repeating: 0, count: width * bytesPerPixel)
+            var currentRow = [UInt8](repeating: 0, count: width * dstBytesPerPixel)
 
-            // Extract row from source
+            // Extract row from source (handle different pixel formats)
             for x in 0..<width {
-                let srcIndex = (y * image.bytesPerRow) + (x * 4) // Source is always RGBA
-                let dstIndex = x * bytesPerPixel
+                let srcIndex = (y * image.bytesPerRow) + (x * srcBytesPerPixel)
+                let dstIndex = x * dstBytesPerPixel
 
-                if srcIndex + 3 < imageData.count {
-                    currentRow[dstIndex] = imageData[srcIndex]         // R
-                    currentRow[dstIndex + 1] = imageData[srcIndex + 1] // G
-                    currentRow[dstIndex + 2] = imageData[srcIndex + 2] // B
-                    if hasAlpha {
-                        currentRow[dstIndex + 3] = imageData[srcIndex + 3] // A
+                // Extract RGBA values based on source format
+                var r: UInt8 = 0, g: UInt8 = 0, b: UInt8 = 0, a: UInt8 = 255
+
+                if srcBytesPerPixel == 4 && srcIndex + 3 < imageData.count {
+                    if srcIsARGB {
+                        // ARGB format
+                        a = imageData[srcIndex]
+                        r = imageData[srcIndex + 1]
+                        g = imageData[srcIndex + 2]
+                        b = imageData[srcIndex + 3]
+                    } else {
+                        // RGBA format (default)
+                        r = imageData[srcIndex]
+                        g = imageData[srcIndex + 1]
+                        b = imageData[srcIndex + 2]
+                        a = imageData[srcIndex + 3]
                     }
+                } else if srcBytesPerPixel == 3 && srcIndex + 2 < imageData.count {
+                    // RGB format (no alpha)
+                    r = imageData[srcIndex]
+                    g = imageData[srcIndex + 1]
+                    b = imageData[srcIndex + 2]
+                } else if srcBytesPerPixel == 1 && srcIndex < imageData.count {
+                    // Grayscale
+                    let gray = imageData[srcIndex]
+                    r = gray
+                    g = gray
+                    b = gray
+                }
+
+                currentRow[dstIndex] = r
+                currentRow[dstIndex + 1] = g
+                currentRow[dstIndex + 2] = b
+                if hasAlpha {
+                    currentRow[dstIndex + 3] = a
                 }
             }
 
@@ -85,7 +119,7 @@ internal struct PNGEncoder {
             let (filterType, filteredRow) = selectBestFilter(
                 currentRow: currentRow,
                 previousRow: previousRow,
-                bytesPerPixel: bytesPerPixel
+                bytesPerPixel: dstBytesPerPixel
             )
 
             filteredData.append(filterType)
@@ -227,8 +261,14 @@ internal struct PNGEncoder {
         // PNG Signature
         output.append(contentsOf: PNG_SIGNATURE)
 
+        // Determine source pixel format
+        let srcBytesPerPixel = image.bitsPerPixel / 8
+        let srcHasAlpha = imageHasAlpha(image)
+        let srcAlphaInfo = CGImageAlphaInfo(rawValue: image.bitmapInfo.rawValue & CGBitmapInfo.alphaInfoMask.rawValue)
+        let srcIsARGB = (srcAlphaInfo == .premultipliedFirst || srcAlphaInfo == .first || srcAlphaInfo == .noneSkipFirst)
+
         // IHDR
-        let hasAlpha = imageHasAlpha(image)
+        let hasAlpha = srcHasAlpha
         let colorType: UInt8 = hasAlpha ? 6 : 2
 
         var ihdr: [UInt8] = []
@@ -246,14 +286,39 @@ internal struct PNGEncoder {
         for y in 0..<height {
             rawData.append(FILTER_NONE) // No filter
             for x in 0..<width {
-                let srcIndex = (y * image.bytesPerRow) + (x * 4)
-                if srcIndex + 3 < imageData.count {
-                    rawData.append(imageData[srcIndex])     // R
-                    rawData.append(imageData[srcIndex + 1]) // G
-                    rawData.append(imageData[srcIndex + 2]) // B
-                    if hasAlpha {
-                        rawData.append(imageData[srcIndex + 3]) // A
+                let srcIndex = (y * image.bytesPerRow) + (x * srcBytesPerPixel)
+
+                // Extract RGBA values based on source format
+                var r: UInt8 = 0, g: UInt8 = 0, b: UInt8 = 0, a: UInt8 = 255
+
+                if srcBytesPerPixel == 4 && srcIndex + 3 < imageData.count {
+                    if srcIsARGB {
+                        a = imageData[srcIndex]
+                        r = imageData[srcIndex + 1]
+                        g = imageData[srcIndex + 2]
+                        b = imageData[srcIndex + 3]
+                    } else {
+                        r = imageData[srcIndex]
+                        g = imageData[srcIndex + 1]
+                        b = imageData[srcIndex + 2]
+                        a = imageData[srcIndex + 3]
                     }
+                } else if srcBytesPerPixel == 3 && srcIndex + 2 < imageData.count {
+                    r = imageData[srcIndex]
+                    g = imageData[srcIndex + 1]
+                    b = imageData[srcIndex + 2]
+                } else if srcBytesPerPixel == 1 && srcIndex < imageData.count {
+                    let gray = imageData[srcIndex]
+                    r = gray
+                    g = gray
+                    b = gray
+                }
+
+                rawData.append(r)
+                rawData.append(g)
+                rawData.append(b)
+                if hasAlpha {
+                    rawData.append(a)
                 }
             }
         }
