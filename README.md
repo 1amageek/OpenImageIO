@@ -203,6 +203,16 @@ CGImageSourceUpdateData(source, completeData, true)
 | TIFF | ✅ | ✅ | `public.tiff` |
 | WebP | ✅ | ✅ | `org.webmproject.webp` |
 
+### Unsupported Formats
+
+| Format | Status | Reason |
+|--------|--------|--------|
+| HEIF/HEIC | ❌ | Requires HEVC (H.265) codec - complex implementation with patent licensing |
+| AVIF | ❌ | Requires AV1 codec |
+| RAW | ❌ | Camera-specific formats (CR2, NEF, ARW, etc.) |
+
+> **Note**: HEIF/HEIC support would require implementing an HEVC decoder (thousands of lines of code) or using external libraries like `libheif` compiled to WebAssembly.
+
 ## Supported Metadata
 
 - **EXIF** - Exposure, aperture, ISO, date/time, camera settings
@@ -211,7 +221,7 @@ CGImageSourceUpdateData(source, completeData, true)
 - **TIFF** - Resolution, orientation, software, artist
 - **XMP** - Dublin Core, Photoshop, IPTC Core, EXIF
 - **DNG** - Complete Digital Negative metadata support
-- **HEIC/HEIF** - High Efficiency Image Format properties
+- **HEIC/HEIF** - Property keys defined (format itself not supported, see above)
 - **Maker Notes** - Canon, Nikon, Apple, Fuji, Olympus, Pentax, Minolta
 
 ## Building

@@ -95,7 +95,3 @@ public func CGImageMetadataTagGetType(_ tag: CGImageMetadataTag) -> CGImageMetad
     return tag.type
 }
 
-/// Returns the type identifier for the image metadata tag opaque type.
-public func CGImageMetadataTagGetTypeID() -> UInt {
-    return 2 // Placeholder - actual implementation would return unique ID
-}

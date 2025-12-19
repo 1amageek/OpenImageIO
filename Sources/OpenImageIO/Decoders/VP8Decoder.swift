@@ -131,14 +131,20 @@ internal struct VP8Decoder {
                 let yIdx = y * width + x
                 let uvIdx = (y / 2) * uvWidth + (x / 2)
 
-                let yVal = Int(yuv.y[yIdx])
+                // VP8 uses video range Y (16-235), convert to full range
+                // Y' = (Y - 16) * 255 / 219 ≈ (Y - 16) * 298 / 256
+                let yRaw = Int(yuv.y[yIdx])
+                let yVal = ((yRaw - 16) * 298) >> 8
                 let uVal = Int(yuv.u[min(uvIdx, yuv.u.count - 1)]) - 128
                 let vVal = Int(yuv.v[min(uvIdx, yuv.v.count - 1)]) - 128
 
-                // BT.601 conversion
-                let r = yVal + ((91881 * vVal) >> 16)
-                let g = yVal - ((22554 * uVal + 46802 * vVal) >> 16)
-                let b = yVal + ((116130 * uVal) >> 16)
+                // BT.601 conversion (full range)
+                // R = Y + 1.402 * V  ≈ Y + (359 * V) >> 8
+                // G = Y - 0.344 * U - 0.714 * V ≈ Y - (88 * U + 183 * V) >> 8
+                // B = Y + 1.772 * U ≈ Y + (454 * U) >> 8
+                let r = yVal + ((359 * vVal) >> 8)
+                let g = yVal - ((88 * uVal + 183 * vVal) >> 8)
+                let b = yVal + ((454 * uVal) >> 8)
 
                 let rgbaIdx = yIdx * 4
                 rgba[rgbaIdx] = UInt8(clamping: max(0, min(255, r)))

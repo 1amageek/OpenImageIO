@@ -19,6 +19,8 @@ public class CGImageSource: Hashable, Equatable {
     internal var status: CGImageSourceStatus = .statusIncomplete
     internal var properties: [String: Any] = [:]
     internal var imageProperties: [[String: Any]] = []
+    /// Auxiliary data by image index. Key is auxiliary data type (e.g., kCGImageAuxiliaryDataTypeHDRGainMap).
+    internal var auxiliaryDataByIndex: [[String: [String: Any]]] = []
 
     // MARK: - Initialization
 
@@ -136,6 +138,7 @@ public class CGImageSource: Hashable, Equatable {
             kCGImagePropertyColorModel: colorModelFromPNGColorType(colorType)
         ]
         imageProperties = [properties]
+        auxiliaryDataByIndex = [[:]]
         status = .statusComplete
     }
 
@@ -149,6 +152,8 @@ public class CGImageSource: Hashable, Equatable {
         var offset = 2
         var width = 0
         var height = 0
+        var xmpData: Data?
+        var gainMapInfo: [String: Any]?
 
         while offset < count - 1 {
             guard bytes[offset] == 0xFF else {
@@ -163,7 +168,24 @@ public class CGImageSource: Hashable, Equatable {
                 if offset + 9 < count {
                     height = (Int(bytes[offset + 5]) << 8) | Int(bytes[offset + 6])
                     width = (Int(bytes[offset + 7]) << 8) | Int(bytes[offset + 8])
-                    break
+                }
+            }
+
+            // APP1 marker (XMP or EXIF)
+            if marker == 0xE1 && offset + 3 < count {
+                let length = (Int(bytes[offset + 2]) << 8) | Int(bytes[offset + 3])
+                if offset + 2 + length <= count {
+                    let segmentStart = offset + 4
+                    let segmentData = Data(bytes: bytes + segmentStart, count: length - 2)
+
+                    // Check for XMP namespace: "http://ns.adobe.com/xap/1.0/"
+                    if let xmpString = String(data: segmentData, encoding: .utf8),
+                       xmpString.hasPrefix("http://ns.adobe.com/xap/1.0/") {
+                        // Extract XMP content after the namespace identifier and null byte
+                        if let nullIndex = segmentData.firstIndex(of: 0) {
+                            xmpData = segmentData.suffix(from: segmentData.index(after: nullIndex))
+                        }
+                    }
                 }
             }
 
@@ -179,6 +201,12 @@ public class CGImageSource: Hashable, Equatable {
             }
         }
 
+        // Parse XMP for HDR Gain Map metadata
+        if let xmpData = xmpData,
+           let xmpString = String(data: xmpData, encoding: .utf8) {
+            gainMapInfo = parseXMPForGainMap(xmpString: xmpString, imageData: imageData)
+        }
+
         imageCount = 1
         properties = [
             kCGImagePropertyPixelWidth: width,
@@ -186,7 +214,141 @@ public class CGImageSource: Hashable, Equatable {
             kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
         ]
         imageProperties = [properties]
+
+        // Store auxiliary data if found
+        if let gainMapInfo = gainMapInfo {
+            auxiliaryDataByIndex = [[kCGImageAuxiliaryDataTypeHDRGainMap: gainMapInfo]]
+        } else {
+            auxiliaryDataByIndex = [[:]]
+        }
+
         status = .statusComplete
+    }
+
+    /// Parses XMP metadata to extract HDR Gain Map information (Ultra HDR / ISO 21496-1)
+    private func parseXMPForGainMap(xmpString: String, imageData: Data) -> [String: Any]? {
+        // Check for HDR Gain Map version indicator
+        guard xmpString.contains("hdrgm:Version") || xmpString.contains("GainMap") else {
+            return nil
+        }
+
+        var gainMapMetadata: [String: Any] = [:]
+
+        // Extract hdrgm namespace attributes
+        let hdrgmAttributes = [
+            ("hdrgm:Version", "Version"),
+            ("hdrgm:GainMapMin", "GainMapMin"),
+            ("hdrgm:GainMapMax", "GainMapMax"),
+            ("hdrgm:Gamma", "Gamma"),
+            ("hdrgm:OffsetSDR", "OffsetSDR"),
+            ("hdrgm:OffsetHDR", "OffsetHDR"),
+            ("hdrgm:HDRCapacityMin", "HDRCapacityMin"),
+            ("hdrgm:HDRCapacityMax", "HDRCapacityMax"),
+            ("hdrgm:BaseRenditionIsHDR", "BaseRenditionIsHDR")
+        ]
+
+        for (xmlKey, dictKey) in hdrgmAttributes {
+            if let value = extractXMPAttribute(from: xmpString, attribute: xmlKey) {
+                // Parse numeric values
+                if let doubleValue = Double(value) {
+                    gainMapMetadata[dictKey] = doubleValue
+                } else if value.lowercased() == "true" {
+                    gainMapMetadata[dictKey] = true
+                } else if value.lowercased() == "false" {
+                    gainMapMetadata[dictKey] = false
+                } else {
+                    gainMapMetadata[dictKey] = value
+                }
+            }
+        }
+
+        // Extract GContainer information for Gain Map location
+        if let gainMapLength = extractGainMapLength(from: xmpString) {
+            gainMapMetadata["GainMapLength"] = gainMapLength
+
+            // Extract the gain map image data from the end of the file
+            if let gainMapData = extractGainMapData(from: imageData, length: gainMapLength) {
+                gainMapMetadata[kCGImageAuxiliaryDataInfoData] = gainMapData
+            }
+        }
+
+        // Only return if we found meaningful gain map data
+        guard !gainMapMetadata.isEmpty,
+              gainMapMetadata["Version"] != nil || gainMapMetadata[kCGImageAuxiliaryDataInfoData] != nil else {
+            return nil
+        }
+
+        // Build the data description dictionary
+        var dataDescription: [String: Any] = [:]
+        for (key, value) in gainMapMetadata where key != kCGImageAuxiliaryDataInfoData {
+            dataDescription[key] = value
+        }
+        gainMapMetadata[kCGImageAuxiliaryDataInfoDataDescription] = dataDescription
+
+        return gainMapMetadata
+    }
+
+    /// Extracts an attribute value from XMP string
+    private func extractXMPAttribute(from xmpString: String, attribute: String) -> String? {
+        // Pattern: attribute="value" or attribute='value'
+        let patterns = [
+            "\(attribute)=\"([^\"]+)\"",
+            "\(attribute)='([^']+)'"
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []),
+               let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
+               match.numberOfRanges > 1,
+               let range = Range(match.range(at: 1), in: xmpString) {
+                return String(xmpString[range])
+            }
+        }
+        return nil
+    }
+
+    /// Extracts the Gain Map length from GContainer directory in XMP
+    private func extractGainMapLength(from xmpString: String) -> Int? {
+        // Look for Item:Length in GainMap semantic item
+        // Pattern: Item:Semantic="GainMap"...Item:Length="12345"
+
+        // First check if GainMap semantic exists
+        guard xmpString.contains("GainMap") else { return nil }
+
+        // Try to find Item:Length near GainMap
+        let pattern = "Item:Length=\"(\\d+)\""
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []),
+           let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
+           match.numberOfRanges > 1,
+           let range = Range(match.range(at: 1), in: xmpString),
+           let length = Int(xmpString[range]) {
+            return length
+        }
+        return nil
+    }
+
+    /// Extracts Gain Map JPEG data from the end of the image file
+    private func extractGainMapData(from imageData: Data, length: Int) -> Data? {
+        // Gain Map is appended after the primary image's EOI marker
+        // Search for the last EOI (0xFFD9) that marks the start of gain map
+
+        guard length > 0, length < imageData.count else { return nil }
+
+        // The gain map should be at the end of the file
+        let gainMapStart = imageData.count - length
+        guard gainMapStart > 0 else { return nil }
+
+        // Verify the gain map starts with JPEG SOI marker (0xFFD8)
+        guard gainMapStart + 1 < imageData.count else { return nil }
+
+        let soi1 = imageData[gainMapStart]
+        let soi2 = imageData[gainMapStart + 1]
+
+        if soi1 == 0xFF && soi2 == 0xD8 {
+            return imageData.suffix(length)
+        }
+
+        return nil
     }
 
     internal func parseGIF(bytes: UnsafePointer<UInt8>, count: Int) {
@@ -249,6 +411,7 @@ public class CGImageSource: Hashable, Equatable {
                 kCGImagePropertyPixelHeight: height
             ]
         }
+        auxiliaryDataByIndex = (0..<imageCount).map { _ in [:] }
 
         status = .statusComplete
     }
@@ -280,6 +443,7 @@ public class CGImageSource: Hashable, Equatable {
             kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
         ]
         imageProperties = [properties]
+        auxiliaryDataByIndex = [[:]]
         status = .statusComplete
     }
 
@@ -341,6 +505,7 @@ public class CGImageSource: Hashable, Equatable {
             kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
         ]
         imageProperties = [properties]
+        auxiliaryDataByIndex = [[:]]
         status = .statusComplete
     }
 
@@ -410,6 +575,7 @@ public class CGImageSource: Hashable, Equatable {
             kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
         ]
         imageProperties = [properties]
+        auxiliaryDataByIndex = [[:]]
         status = .statusComplete
     }
 
@@ -453,10 +619,6 @@ public func CGImageSourceCreateIncremental(_ options: [String: Any]?) -> CGImage
 
 // MARK: - CGImageSource Information Functions
 
-/// Returns the unique type identifier of an image source opaque type.
-public func CGImageSourceGetTypeID() -> UInt {
-    return 0 // Placeholder - actual implementation would return unique ID
-}
 
 /// Returns the uniform type identifier of the source container.
 public func CGImageSourceGetType(_ isrc: CGImageSource) -> String? {
@@ -495,8 +657,10 @@ public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: I
 
 /// Returns auxiliary data, such as mattes and depth information, that accompany the image.
 public func CGImageSourceCopyAuxiliaryDataInfoAtIndex(_ isrc: CGImageSource, _ index: Int, _ auxiliaryImageDataType: String) -> [String: Any]? {
-    // Placeholder - auxiliary data parsing not implemented
-    return nil
+    guard index >= 0 && index < isrc.auxiliaryDataByIndex.count else {
+        return nil
+    }
+    return isrc.auxiliaryDataByIndex[index][auxiliaryImageDataType]
 }
 
 // MARK: - CGImageSource Image Extraction Functions

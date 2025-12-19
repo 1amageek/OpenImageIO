@@ -449,15 +449,6 @@ struct CGImageDestinationTypeInformationTests {
         #expect(identifiers.contains("public.tiff"))
     }
 
-    @Test("Get type ID returns consistent value")
-    func getTypeID() {
-        let typeID1 = CGImageDestinationGetTypeID()
-        let typeID2 = CGImageDestinationGetTypeID()
-
-        // Verify it returns a consistent value
-        #expect(typeID1 == typeID2)
-        #expect(typeID1 >= 0)
-    }
 }
 
 // MARK: - CGImageDestination Output Format Tests
@@ -1459,17 +1450,25 @@ struct CGImageDestinationWebPEncodingTests {
 
         #expect(success == true)
 
-        // Decode WebP
+        // Decode WebP - these MUST succeed for the test to be valid
         let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
-        #expect(source != nil)
+        #expect(source != nil, "WebP source creation must succeed")
 
-        if let source = source {
-            let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
-            if let decoded = decodedImage {
-                #expect(decoded.width == 16)
-                #expect(decoded.height == 16)
-            }
+        guard let validSource = source else {
+            Issue.record("Failed to create CGImageSource from WebP data")
+            return
         }
+
+        let decodedImage = CGImageSourceCreateImageAtIndex(validSource, 0, nil)
+        #expect(decodedImage != nil, "WebP image decoding must succeed")
+
+        guard let decoded = decodedImage else {
+            Issue.record("Failed to decode WebP image")
+            return
+        }
+
+        #expect(decoded.width == 16, "Decoded width must match original")
+        #expect(decoded.height == 16, "Decoded height must match original")
     }
 
     @Test("WebP quality setting affects file size")
@@ -1930,15 +1929,25 @@ struct ComprehensiveFormatEncodingTests {
         #expect(bytes[2] == 0x46) // F
         #expect(bytes[3] == 0x46) // F
 
-        // Decode and verify
+        // Decode and verify - must succeed
         let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
-        if let source = source {
-            let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)
-            if let decoded = decoded {
-                #expect(decoded.width == 4)
-                #expect(decoded.height == 4)
-            }
+        #expect(source != nil, "WebP source creation must succeed")
+
+        guard let validSource = source else {
+            Issue.record("Failed to create CGImageSource from WebP data")
+            return
         }
+
+        let decoded = CGImageSourceCreateImageAtIndex(validSource, 0, nil)
+        #expect(decoded != nil, "WebP image decoding must succeed")
+
+        guard let validDecoded = decoded else {
+            Issue.record("Failed to decode WebP image")
+            return
+        }
+
+        #expect(validDecoded.width == 4, "Decoded width must be 4")
+        #expect(validDecoded.height == 4, "Decoded height must be 4")
     }
 
     @Test("WebP lossy at various quality levels")

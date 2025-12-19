@@ -53,15 +53,6 @@ struct CGImageMetadataCreationTests {
         #expect(metadata == nil)
     }
 
-    @Test("Get metadata type ID returns consistent value")
-    func getTypeID() {
-        let typeID1 = CGImageMetadataGetTypeID()
-        let typeID2 = CGImageMetadataGetTypeID()
-
-        // Verify it returns a consistent value
-        #expect(typeID1 == typeID2)
-        #expect(typeID1 >= 0)
-    }
 }
 
 // MARK: - CGImageMetadata Tag Access Tests

@@ -258,10 +258,6 @@ private func prefixForNamespace(_ namespace: String) -> String? {
 
 // MARK: - CGImageMetadata Type Functions
 
-/// Returns the type identifier for metadata objects.
-public func CGImageMetadataGetTypeID() -> UInt {
-    return 3 // Placeholder - actual implementation would return unique ID
-}
 
 // MARK: - CGMutableImageMetadata Functions
 

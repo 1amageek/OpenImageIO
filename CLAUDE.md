@@ -114,6 +114,16 @@ All formats are fully implemented with complete decode and encode support:
 | TIFF | ✅ Full | ✅ Full | Uncompressed RGB/RGBA, multi-page support |
 | WebP | ✅ Full | ✅ Full | VP8 (lossy) and VP8L (lossless) encode/decode |
 
+#### Unsupported Formats
+
+| Format | Status | Reason |
+|--------|--------|--------|
+| HEIF/HEIC | ❌ Not supported | Requires HEVC (H.265) codec which involves complex implementation and patent licensing |
+| AVIF | ❌ Not supported | Requires AV1 codec |
+| RAW formats | ❌ Not supported | Camera-specific formats (CR2, NEF, ARW, etc.) |
+
+**HEIF/HEIC Note**: HEIF is based on the ISO Base Media File Format (ISOBMFF) and uses HEVC for image compression. Pure Swift implementation would require thousands of lines of code for the HEVC decoder. For WASM environments requiring HEIF support, consider using `libheif` compiled to WebAssembly via Emscripten.
+
 #### Implementation Details
 
 - **PNG**: Full DEFLATE/zlib compression with Adler-32 checksums
@@ -141,8 +151,80 @@ All formats are fully implemented with complete decode and encode support:
 ### Implementation Policy
 
 - **Do NOT implement deprecated APIs** - Only implement current, non-deprecated ImageIO APIs
+- **Do NOT implement CoreFoundation-dependent APIs** - CF runtime is not available in WASM
 - Focus on APIs that are meaningful for WASM environments
 - Prioritize common image formats (PNG, JPEG, GIF) over specialized ones
+
+### Unsupported APIs
+
+The following ImageIO APIs are intentionally NOT provided:
+
+| API | Reason |
+|-----|--------|
+| `CGImageSourceGetTypeID()` | Requires CoreFoundation runtime (`CFTypeID`). Use Swift's `is`/`as?` instead. |
+| `CGImageDestinationGetTypeID()` | Same as above |
+| `CGImageMetadataGetTypeID()` | Same as above |
+| `CGImageMetadataTagGetTypeID()` | Same as above |
+
+**Note**: These CF-dependent APIs are legacy even on Darwin. Modern Swift code should use native type checking (`is`, `as?`) instead of `CFGetTypeID()`.
+
+### Partially Supported APIs
+
+| API | Status |
+|-----|--------|
+| `CGImageSourceCopyAuxiliaryDataInfoAtIndex()` | ✅ HDR Gain Map (ISO 21496-1/Ultra HDR) in JPEG. ❌ Depth/Matte/Disparity not supported. |
+| `CGImageSourceGetPrimaryImageIndex()` | Returns 0 (correct for non-HEIF formats per Apple spec). HEIF not supported. |
+
+### HDR Gain Map Support (ISO 21496-1 / Ultra HDR)
+
+JPEG files containing HDR Gain Maps (as used by iOS 18+, Android 15+, Adobe apps) are supported:
+
+```swift
+let source = CGImageSourceCreateWithData(jpegData, nil)!
+let gainMapInfo = CGImageSourceCopyAuxiliaryDataInfoAtIndex(
+    source, 0, kCGImageAuxiliaryDataTypeHDRGainMap
+)
+
+if let info = gainMapInfo {
+    // Contains:
+    // - kCGImageAuxiliaryDataInfoData: Gain Map JPEG data
+    // - kCGImageAuxiliaryDataInfoDataDescription: hdrgm metadata (Version, GainMapMin, GainMapMax, etc.)
+}
+```
+
+## Project Structure
+
+```
+Sources/OpenImageIO/
+├── CGImageSource.swift          # Image decoding API
+├── CGImageDestination.swift     # Image encoding API
+├── CGImageMetadata.swift        # XMP metadata handling
+├── CGImageMetadataTag.swift     # Metadata tag operations
+├── ImageProperties.swift        # Property key constants
+├── FormatProperties.swift       # Format-specific properties
+│
+├── Encoders/
+│   ├── PNGEncoder.swift         # PNG with DEFLATE compression
+│   ├── JPEGEncoder.swift        # JPEG with DCT, Huffman coding
+│   ├── GIFEncoder.swift         # GIF with LZW, Median Cut quantization
+│   ├── BMPEncoder.swift         # BMP 24-bit/32-bit support
+│   ├── TIFFEncoder.swift        # TIFF with multi-page support
+│   ├── WebPEncoder.swift        # WebP VP8/VP8L encoding
+│   └── ColorQuantizer.swift     # Median Cut, Floyd-Steinberg dithering
+│
+├── Decoders/
+│   ├── PNGDecoder.swift         # PNG decoding
+│   ├── JPEGDecoder.swift        # JPEG decoding with YCbCr→RGB
+│   ├── GIFDecoder.swift         # GIF with animation support
+│   ├── BMPDecoder.swift         # BMP decoding
+│   ├── TIFFDecoder.swift        # TIFF with multi-page support
+│   ├── WebPDecoder.swift        # WebP container parsing
+│   └── VP8Decoder.swift         # VP8/VP8L bitstream decoding
+│
+└── Compression/
+    ├── Deflate.swift            # DEFLATE compression for PNG
+    └── LZW.swift                # LZW compression for GIF/TIFF
+```
 
 ## Testing
 
@@ -154,8 +236,112 @@ import Testing
 
 @Test func testImageSourceFromPNG() {
     let pngData = createTestPNGData()
-    let source = CGImageSourceCreateWithData(pngData as CFData, nil)
+    let source = CGImageSourceCreateWithData(pngData, nil)
     #expect(source != nil)
     #expect(CGImageSourceGetCount(source!) == 1)
 }
 ```
+
+### Test Coverage
+
+**Total: 264 tests**
+
+| Test Suite | Tests | Description |
+|------------|-------|-------------|
+| CGImageDestinationTests | 75 | Encoding, roundtrip, format output |
+| ImageFormatTests | 45 | Format parsing, decoding, detection |
+| CGImageSourceTests | 42 | Source creation, image extraction |
+| CGImageMetadataTests | 39 | XMP metadata operations |
+| CGImageMetadataTagTests | 30 | Tag creation, attributes |
+| OpenImageIOTests | 21 | Property constants, type info |
+| CoreFoundationTypesTests | 12 | CGImage, CGDataProvider |
+
+### Format-Specific Test Coverage
+
+| Format | Decode | Encode | Roundtrip | Comprehensive |
+|--------|--------|--------|-----------|---------------|
+| PNG | 7 | 5 | 4 | 2 |
+| JPEG | 6 | 2 | 3 | 2 |
+| GIF | 6 | 2 | 3 | 2 |
+| BMP | 5 | 1 | 2 | 2 |
+| TIFF | 5 | 3 | 3 | 2 |
+| WebP | 4 | 4 | 1 | 3 |
+
+## Encoding Examples
+
+### PNG Encoding
+
+```swift
+let data = NSMutableData()
+let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+CGImageDestinationAddImage(destination, image, nil)
+CGImageDestinationFinalize(destination)
+```
+
+### JPEG Encoding with Quality
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+CGImageDestinationAddImage(destination, image, [
+    kCGImageDestinationLossyCompressionQuality: 0.8
+])
+CGImageDestinationFinalize(destination)
+```
+
+### WebP Lossless Encoding
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+CGImageDestinationAddImage(destination, image, ["lossless": true])
+CGImageDestinationFinalize(destination)
+```
+
+### WebP Lossy Encoding
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+CGImageDestinationAddImage(destination, image, [
+    kCGImageDestinationLossyCompressionQuality: 0.8
+])
+CGImageDestinationFinalize(destination)
+```
+
+### Multi-page TIFF
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "public.tiff", 3, nil)!
+CGImageDestinationAddImage(destination, page1, nil)
+CGImageDestinationAddImage(destination, page2, nil)
+CGImageDestinationAddImage(destination, page3, nil)
+CGImageDestinationFinalize(destination)
+```
+
+### Animated GIF
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 3, nil)!
+CGImageDestinationSetProperties(destination, ["delay": 0.1])
+CGImageDestinationAddImage(destination, frame1, nil)
+CGImageDestinationAddImage(destination, frame2, nil)
+CGImageDestinationAddImage(destination, frame3, nil)
+CGImageDestinationFinalize(destination)
+```
+
+### BMP with Alpha Channel
+
+```swift
+let destination = CGImageDestinationCreateWithData(data, "com.microsoft.bmp", 1, nil)!
+CGImageDestinationAddImage(destination, image, ["preserveAlpha": true])
+CGImageDestinationFinalize(destination)
+```
+
+## Type Identifiers
+
+| Format | UTI |
+|--------|-----|
+| PNG | `public.png` |
+| JPEG | `public.jpeg` |
+| GIF | `com.compuserve.gif` |
+| BMP | `com.microsoft.bmp` |
+| TIFF | `public.tiff` |
+| WebP | `org.webmproject.webp` |

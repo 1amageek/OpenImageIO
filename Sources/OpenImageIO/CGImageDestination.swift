@@ -203,11 +203,6 @@ public func CGImageDestinationCopyTypeIdentifiers() -> [String] {
     ]
 }
 
-/// Returns the unique type identifier of an image destination opaque type.
-public func CGImageDestinationGetTypeID() -> UInt {
-    return 1
-}
-
 // MARK: - Image Encoding
 
 private func encodeImages(_ idst: CGImageDestination) -> [UInt8] {
@@ -324,12 +319,12 @@ private func adler32(_ data: [UInt8]) -> UInt32 {
 }
 
 private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? = nil, globalProperties: [String: Any]? = nil) -> [UInt8] {
-    // Get quality
-    var quality: Double = 0.8
-    if let q = properties?[kCGImageDestinationLossyCompressionQuality] as? Double {
-        quality = q
-    } else if let q = globalProperties?[kCGImageDestinationLossyCompressionQuality] as? Double {
-        quality = q
+    // Merge properties (image properties override global properties)
+    var mergedOptions: [String: Any] = globalProperties ?? [:]
+    if let props = properties {
+        for (key, value) in props {
+            mergedOptions[key] = value
+        }
     }
 
     guard let entry = idst.images.first else { return [] }
@@ -346,7 +341,7 @@ private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? =
     guard let img = image else { return [] }
 
     // Use the full JPEG encoder with DCT compression
-    if let encoded = JPEGEncoder.encode(image: img, quality: quality) {
+    if let encoded = JPEGEncoder.encode(image: img, options: mergedOptions) {
         return Array(encoded)
     }
 

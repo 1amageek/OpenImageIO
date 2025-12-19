@@ -71,7 +71,8 @@ internal struct TIFFEncoder {
         var ifdDataList: [(ifd: Data, strips: Data)] = []
 
         for (index, image) in images.enumerated() {
-            guard let imageData = image.dataProvider?.data else { continue }
+            guard let imageData = image.dataProvider?.data,
+                  image.width > 0, image.height > 0 else { continue }
 
             let hasAlpha = imageHasAlpha(image)
             let isLastImage = (index == images.count - 1)
@@ -195,6 +196,9 @@ internal struct TIFFEncoder {
             ifdDataList.append((ifd: ifd, strips: stripData))
             currentOffset = nextIFDOffset
         }
+
+        // Ensure at least one valid image was processed
+        guard !ifdDataList.isEmpty else { return nil }
 
         // Write all IFDs and strip data
         for (ifd, strips) in ifdDataList {

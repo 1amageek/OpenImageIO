@@ -5,8 +5,7 @@
 
 import Foundation
 
-/// WebP image decoder with VP8L (lossless) support
-/// Note: VP8 (lossy) decoding returns a placeholder due to complexity
+/// WebP image decoder with VP8L (lossless) and VP8 (lossy) support
 internal struct WebPDecoder {
 
     // MARK: - WebP Constants
@@ -112,8 +111,8 @@ internal struct WebPDecoder {
         var decoder = VP8LDecoder(ptr: ptr.advanced(by: 5), count: count - 5, width: width, height: height)
 
         guard let pixels = decoder.decode() else {
-            // If decoding fails, return a placeholder gray image
-            return createPlaceholderImage(width: width, height: height, hasAlpha: hasAlpha)
+            // Return nil on decode failure - do not return placeholder images
+            return nil
         }
 
         return DecodeResult(
@@ -129,22 +128,8 @@ internal struct WebPDecoder {
     private static func decodeVP8(ptr: UnsafePointer<UInt8>, count: Int) -> DecodeResult? {
         // Use the full VP8 decoder
         guard let result = VP8Decoder.decode(ptr: ptr, count: count) else {
-            // Fallback to placeholder if decoding fails
-            guard count >= 10 else { return nil }
-
-            let frameTag = UInt32(ptr[0]) | (UInt32(ptr[1]) << 8) | (UInt32(ptr[2]) << 16)
-            let isKeyFrame = (frameTag & 1) == 0
-            guard isKeyFrame else { return nil }
-
-            guard ptr[3] == 0x9D && ptr[4] == 0x01 && ptr[5] == 0x2A else { return nil }
-
-            let widthData = UInt16(ptr[6]) | (UInt16(ptr[7]) << 8)
-            let heightData = UInt16(ptr[8]) | (UInt16(ptr[9]) << 8)
-            let width = Int(widthData & 0x3FFF)
-            let height = Int(heightData & 0x3FFF)
-
-            guard width > 0 && height > 0 else { return nil }
-            return createPlaceholderImage(width: width, height: height, hasAlpha: false)
+            // Return nil on decode failure - do not return placeholder images
+            return nil
         }
 
         return DecodeResult(
@@ -152,27 +137,6 @@ internal struct WebPDecoder {
             width: result.width,
             height: result.height,
             hasAlpha: false
-        )
-    }
-
-    // MARK: - Placeholder Image
-
-    private static func createPlaceholderImage(width: Int, height: Int, hasAlpha: Bool) -> DecodeResult {
-        // Create a gray placeholder image to indicate unsupported/failed decode
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-
-        for i in stride(from: 0, to: pixels.count, by: 4) {
-            pixels[i] = 128     // R
-            pixels[i + 1] = 128 // G
-            pixels[i + 2] = 128 // B
-            pixels[i + 3] = 255 // A
-        }
-
-        return DecodeResult(
-            pixels: Data(pixels),
-            width: width,
-            height: height,
-            hasAlpha: hasAlpha
         )
     }
 }

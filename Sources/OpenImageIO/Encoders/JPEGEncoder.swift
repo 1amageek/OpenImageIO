@@ -119,13 +119,26 @@ internal struct JPEGEncoder {
     /// Encode a CGImage to JPEG data
     /// - Parameters:
     ///   - image: The image to encode
-    ///   - quality: Compression quality (0.0 to 1.0, default 0.8)
+    ///   - options: Encoding options (optional). Supports:
+    ///     - `kCGImageDestinationLossyCompressionQuality`: Quality (0.0 to 1.0, default 0.8)
     /// - Returns: JPEG data or nil if encoding fails
-    static func encode(image: CGImage, quality: Double = 0.8) -> Data? {
+    static func encode(image: CGImage, options: [String: Any]? = nil) -> Data? {
         let width = image.width
         let height = image.height
 
         guard width > 0 && height > 0 else { return nil }
+
+        // Extract quality from options (default 0.8)
+        let quality: Double
+        if let q = options?[kCGImageDestinationLossyCompressionQuality] as? Double {
+            quality = max(0.0, min(1.0, q))
+        } else if let q = options?[kCGImageDestinationLossyCompressionQuality] as? Float {
+            quality = Double(max(0.0, min(1.0, q)))
+        } else if let q = options?[kCGImageDestinationLossyCompressionQuality] as? NSNumber {
+            quality = max(0.0, min(1.0, q.doubleValue))
+        } else {
+            quality = 0.8
+        }
 
         // Get pixel data
         guard let pixelData = getPixelData(from: image) else { return nil }

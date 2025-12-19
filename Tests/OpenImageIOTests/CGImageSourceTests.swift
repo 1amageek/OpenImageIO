@@ -185,15 +185,6 @@ struct CGImageSourceInformationTests {
         #expect(index == 0)
     }
 
-    @Test("Get type ID returns consistent value")
-    func getTypeID() {
-        let typeID1 = CGImageSourceGetTypeID()
-        let typeID2 = CGImageSourceGetTypeID()
-
-        // Verify it returns a consistent value
-        #expect(typeID1 == typeID2)
-        #expect(typeID1 >= 0)
-    }
 }
 
 // MARK: - CGImageSource Image Extraction Tests
