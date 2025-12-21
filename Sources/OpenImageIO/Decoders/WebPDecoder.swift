@@ -152,6 +152,7 @@ private struct VP8LDecoder {
     private var bitBuffer: UInt64 = 0
     private var bitsInBuffer: Int = 0
     private var byteOffset: Int = 0
+    private var isExhausted: Bool = false
 
     // Color cache
     private var colorCacheSize: Int = 0
@@ -171,21 +172,33 @@ private struct VP8LDecoder {
         // 3. Huffman code parsing
         // 4. LZ77-style pixel decoding
 
+        print("[VP8L] Starting decode: width=\(width), height=\(height), dataSize=\(count)")
+
         // Read transforms
         var transforms: [VP8LTransform] = []
 
         while readBit() == 1 {
-            guard let transform = readTransform() else { return nil }
+            print("[VP8L] Reading transform...")
+            guard let transform = readTransform() else {
+                print("[VP8L] Failed to read transform")
+                return nil
+            }
             transforms.append(transform)
 
             // Limit transforms to prevent infinite loops
-            if transforms.count > 4 { return nil }
+            if transforms.count > 4 {
+                print("[VP8L] Too many transforms")
+                return nil
+            }
         }
+        print("[VP8L] Transforms count: \(transforms.count)")
 
         // Read color cache size
         let useColorCache = readBit() == 1
+        print("[VP8L] useColorCache: \(useColorCache)")
         if useColorCache {
             let colorCacheBits = readBits(4)
+            print("[VP8L] colorCacheBits: \(colorCacheBits)")
             if colorCacheBits > 0 && colorCacheBits <= 11 {
                 colorCacheSize = 1 << colorCacheBits
                 colorCache = [UInt32](repeating: 0, count: colorCacheSize)
@@ -193,10 +206,19 @@ private struct VP8LDecoder {
         }
 
         // Read Huffman codes
-        guard let huffmanGroups = readHuffmanCodes() else { return nil }
+        guard let huffmanGroups = readHuffmanCodes() else {
+            print("[VP8L] Failed to read Huffman codes")
+            return nil
+        }
+        print("[VP8L] HuffmanGroups count: \(huffmanGroups.count)")
 
         // Decode image data
-        guard let argbPixels = decodeImageStream(huffmanGroups: huffmanGroups) else { return nil }
+        print("[VP8L] Starting decodeImageStream...")
+        guard let argbPixels = decodeImageStream(huffmanGroups: huffmanGroups) else {
+            print("[VP8L] Failed to decode image stream")
+            return nil
+        }
+        print("[VP8L] decodeImageStream completed, pixels: \(argbPixels.count)")
 
         // Apply transforms in reverse order
         var pixels = argbPixels
@@ -223,7 +245,10 @@ private struct VP8LDecoder {
 
     private mutating func readBit() -> Int {
         if bitsInBuffer == 0 {
-            guard loadBits() else { return 0 }
+            guard loadBits() else {
+                isExhausted = true
+                return 0
+            }
         }
 
         let bit = Int(bitBuffer & 1)
@@ -235,8 +260,22 @@ private struct VP8LDecoder {
     private mutating func readBits(_ count: Int) -> Int {
         guard count > 0 else { return 0 }
 
-        while bitsInBuffer < count {
-            guard loadBits() else { return 0 }
+        // Load more bits if needed
+        if bitsInBuffer < count {
+            _ = loadBits()
+            // If still not enough bits after loading, we're exhausted
+            if bitsInBuffer < count {
+                isExhausted = true
+                // Return whatever bits we have, padded with zeros
+                if bitsInBuffer > 0 {
+                    let mask = (1 << bitsInBuffer) - 1
+                    let result = Int(bitBuffer) & mask
+                    bitBuffer = 0
+                    bitsInBuffer = 0
+                    return result
+                }
+                return 0
+            }
         }
 
         let mask = (1 << count) - 1
@@ -251,6 +290,9 @@ private struct VP8LDecoder {
             bitBuffer |= UInt64(ptr[byteOffset]) << bitsInBuffer
             byteOffset += 1
             bitsInBuffer += 8
+        }
+        if bitsInBuffer == 0 {
+            isExhausted = true
         }
         return bitsInBuffer > 0
     }
@@ -351,8 +393,24 @@ private struct VP8LDecoder {
         guard !huffmanGroups.isEmpty else { return nil }
 
         var pixelIndex = 0
+        var iterationCount = 0
+        let maxIterations = totalPixels * 2 // Safety limit
+
+        print("[VP8L] decodeImageStream: totalPixels=\(totalPixels), byteOffset=\(byteOffset), count=\(count)")
 
         while pixelIndex < totalPixels {
+            iterationCount += 1
+            if iterationCount > maxIterations {
+                print("[VP8L] ERROR: Too many iterations (\(iterationCount)), breaking")
+                break
+            }
+
+            // Check if we've exhausted the bit stream
+            if isExhausted {
+                print("[VP8L] Exhausted at pixelIndex=\(pixelIndex)")
+                break
+            }
+
             // Read green/length symbol
             let greenSymbol = readBits(8)
 
@@ -372,8 +430,10 @@ private struct VP8LDecoder {
                 if colorCacheSize > 0 {
                     let argb = UInt32(alpha) << 24 | UInt32(red) << 16 |
                                UInt32(greenSymbol) << 8 | UInt32(blue)
-                    let hashKey = Int((argb * 0x1e35a7bd) >> (32 - log2(Double(colorCacheSize))))
-                    if hashKey < colorCache.count {
+                    // Use wrapping multiplication to avoid overflow
+                    let colorCacheBits = Int(log2(Double(colorCacheSize)))
+                    let hashKey = Int((argb &* 0x1e35a7bd) >> (32 - colorCacheBits))
+                    if hashKey >= 0 && hashKey < colorCache.count {
                         colorCache[hashKey] = argb
                     }
                 }

@@ -4,7 +4,6 @@
 // Full JPEG encoder with DCT, quantization, and Huffman coding
 
 import Foundation
-import OpenCoreGraphics
 
 /// JPEG image encoder with baseline DCT compression
 internal struct JPEGEncoder {

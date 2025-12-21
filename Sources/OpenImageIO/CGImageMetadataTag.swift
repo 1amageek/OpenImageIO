@@ -94,4 +94,3 @@ public func CGImageMetadataTagCopyQualifiers(_ tag: CGImageMetadataTag) -> [CGIm
 public func CGImageMetadataTagGetType(_ tag: CGImageMetadataTag) -> CGImageMetadataType {
     return tag.type
 }
-

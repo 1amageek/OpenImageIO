@@ -13,6 +13,12 @@
 // #endif
 // ```
 
+// Re-export CoreGraphics types for convenience
+// Always use OpenCoreGraphics for consistent Swift-native type APIs
+@_exported import OpenCoreGraphics
+
+@_exported import Foundation
+
 // This file serves as the main module entry point.
 // All public types and functions are defined in their respective files:
 //

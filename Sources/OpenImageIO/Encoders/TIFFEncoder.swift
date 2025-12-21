@@ -4,7 +4,6 @@
 // TIFF image format encoder with multi-page support
 
 import Foundation
-import OpenCoreGraphics
 
 /// TIFF image encoder
 internal struct TIFFEncoder {

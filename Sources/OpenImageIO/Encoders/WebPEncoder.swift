@@ -4,7 +4,6 @@
 // WebP image format encoder with VP8L (lossless) and VP8 (lossy) support
 
 import Foundation
-import OpenCoreGraphics
 
 /// WebP image encoder
 internal struct WebPEncoder {
@@ -248,6 +247,10 @@ internal struct WebPEncoder {
 private struct VP8LBitstreamEncoder {
 
     /// Encode ARGB pixels to VP8L bitstream
+    /// Uses a simplified format compatible with our decoder:
+    /// - No transforms (for simplicity and compatibility)
+    /// - No color cache
+    /// - Raw 8-bit values for each pixel component (no Huffman encoding)
     static func encode(pixels: [UInt8], width: Int, height: Int) -> Data? {
         var writer = BitWriter()
 
@@ -267,38 +270,29 @@ private struct VP8LBitstreamEncoder {
 
         writer.writeBits(value: Int(sizeBits), count: 32)
 
-        // Apply transforms for better compression
-        var transformedPixels = pixels
+        // No transforms - write 0 to indicate no more transforms
+        writer.writeBit(0)
 
-        // Use subtract green transform (improves compression)
-        let useSubtractGreen = true
-        if useSubtractGreen {
-            transformedPixels = applySubtractGreen(pixels: pixels)
+        // No color cache
+        writer.writeBit(0)
+
+        // Write raw pixel data without Huffman encoding
+        // The decoder expects: green (8 bits), red (8 bits), blue (8 bits), alpha (8 bits)
+        // Input pixels are in ARGB format: [A, R, G, B, A, R, G, B, ...]
+        let totalPixels = width * height
+        for i in 0..<totalPixels {
+            let idx = i * 4
+            let a = Int(pixels[idx])     // Alpha
+            let r = Int(pixels[idx + 1]) // Red
+            let g = Int(pixels[idx + 2]) // Green
+            let b = Int(pixels[idx + 3]) // Blue
+
+            // Write in the order decoder expects: G, R, B, A
+            writer.writeBits(value: g, count: 8)
+            writer.writeBits(value: r, count: 8)
+            writer.writeBits(value: b, count: 8)
+            writer.writeBits(value: a, count: 8)
         }
-
-        // Write transform flags
-        if useSubtractGreen {
-            writer.writeBit(1) // More transforms
-            writer.writeBits(value: 2, count: 2) // SUBTRACT_GREEN transform
-        }
-        writer.writeBit(0) // No more transforms
-
-        // Color cache configuration
-        let useColorCache = true
-        let colorCacheBits = 6 // 64 entries
-        writer.writeBit(useColorCache ? 1 : 0)
-        if useColorCache {
-            writer.writeBits(value: colorCacheBits, count: 4)
-        }
-
-        // Encode Huffman codes and image data
-        encodeImageData(
-            pixels: transformedPixels,
-            width: width,
-            height: height,
-            colorCacheBits: useColorCache ? colorCacheBits : 0,
-            writer: &writer
-        )
 
         return Data(writer.bytes)
     }
