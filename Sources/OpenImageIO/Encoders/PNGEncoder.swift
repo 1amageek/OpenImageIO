@@ -4,6 +4,7 @@
 // PNG image format encoder with DEFLATE compression
 
 import Foundation
+import OpenCoreGraphics
 
 /// PNG image encoder
 internal struct PNGEncoder {

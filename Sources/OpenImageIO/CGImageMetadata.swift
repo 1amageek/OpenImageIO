@@ -4,6 +4,7 @@
 // Full API compatibility with Apple's ImageIO framework
 
 @preconcurrency import Foundation
+import OpenCoreGraphics
 
 /// An immutable object that contains the XMP metadata associated with an image.
 public class CGImageMetadata: Hashable, Equatable {

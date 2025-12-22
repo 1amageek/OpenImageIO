@@ -4,6 +4,7 @@
 // BMP image format encoder with 24-bit RGB and 32-bit RGBA support
 
 import Foundation
+import OpenCoreGraphics
 
 /// BMP image encoder
 internal struct BMPEncoder {

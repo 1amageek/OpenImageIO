@@ -4,6 +4,7 @@
 // WebP image format encoder with VP8L (lossless) and VP8 (lossy) support
 
 import Foundation
+import OpenCoreGraphics
 
 /// WebP image encoder
 internal struct WebPEncoder {

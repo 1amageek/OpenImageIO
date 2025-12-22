@@ -4,6 +4,7 @@
 // Full API compatibility with Apple's ImageIO framework
 
 @preconcurrency import Foundation
+import OpenCoreGraphics
 
 /// An immutable type that contains information about a single piece of image metadata.
 public class CGImageMetadataTag: Hashable, Equatable {

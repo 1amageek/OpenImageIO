@@ -4,6 +4,7 @@
 // Full API compatibility with Apple's ImageIO framework
 
 @preconcurrency import Foundation
+import OpenCoreGraphics
 
 /// An opaque type that you use to read image data from a URL, data object, or data consumer.
 public class CGImageSource: Hashable, Equatable {

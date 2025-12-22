@@ -4,6 +4,7 @@
 // Full API compatibility with Apple's ImageIO framework
 
 @preconcurrency import Foundation
+import OpenCoreGraphics
 
 /// An opaque type that you use to write image data to a URL, data object, or data consumer.
 public class CGImageDestination: Hashable, Equatable {

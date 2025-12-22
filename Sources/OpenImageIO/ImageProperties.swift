@@ -5,6 +5,7 @@
 // Properties that apply to the container in general, and not necessarily to an individual image in the container.
 
 @preconcurrency import Foundation
+import OpenCoreGraphics
 
 // MARK: - Platform Compatibility
 
