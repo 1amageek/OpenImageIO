@@ -19,7 +19,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../OpenCoreGraphics"),
+        .package(url: "https://github.com/1amageek/OpenCoreGraphics.git", branch: "main"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
