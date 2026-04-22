@@ -237,6 +237,22 @@ swift build --triple wasm32-unknown-wasi
 swift test
 ```
 
+## WASM-Build Smoke Test
+
+OpenImageIO has no browser-side runtime — it is a pure-Swift codec library
+with no WebGPU or JavaScriptKit dependency. The only per-platform regression
+we can catch is the WASM toolchain failing to compile the sources. The
+script at `tests/wasm-build.sh` does exactly that:
+
+```bash
+bash tests/wasm-build.sh
+# Exits 0 on success, nonzero on compile failure.
+# Uses swift-6.3.1-RELEASE_wasm by default; override via WASM_SDK=<name>.
+```
+
+This is the tier-3 "WASM-build smoke" described in the workspace
+`CLAUDE.md`. Run it before cutting a release.
+
 ## Cross-Platform Pattern
 
 The recommended pattern for cross-platform code:
