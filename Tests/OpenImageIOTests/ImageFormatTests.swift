@@ -363,6 +363,230 @@ struct TIFFFormatTests {
 
         #expect(props[kCGImagePropertyColorModel] as? String == kCGImagePropertyColorModelRGB)
     }
+
+    // MARK: - Multi-IFD + Predictor + Cycle Guard
+
+    /// Round-trip a 3-page TIFF: encode three CGImages with
+    /// `CGImageDestinationCreateWithData(..., "public.tiff", 3, nil)`, then
+    /// decode each frame by index. Each frame must report the expected
+    /// pixel-size, exercising the multi-IFD path in `TIFFDecoder` +
+    /// `CGImageSource.parseTIFF`.
+    @Test("Multi-page TIFF: three pages roundtrip with correct dimensions")
+    func multiPageTIFFRoundtrip() throws {
+        let sizes: [(Int, Int)] = [(4, 3), (5, 5), (6, 2)]
+        let images = sizes.map { createTestImage(width: $0.0, height: $0.1) }
+
+        var data = Data()
+        let destination = try #require(
+            CGImageDestinationCreateWithData(&data, "public.tiff", images.count, nil)
+        )
+        for image in images {
+            CGImageDestinationAddImage(destination, image, nil)
+        }
+
+        let success = CGImageDestinationFinalize(destination)
+        #expect(success == true, "Multi-page TIFF encode must succeed")
+
+        let source = try #require(CGImageSourceCreateWithData(data, nil))
+        #expect(
+            CGImageSourceGetCount(source) == images.count,
+            "Source must report 3 pages"
+        )
+
+        for (index, expected) in sizes.enumerated() {
+            let frame = try #require(
+                CGImageSourceCreateImageAtIndex(source, index, nil),
+                "Frame \(index) must decode"
+            )
+            #expect(frame.width == expected.0, "Frame \(index) width")
+            #expect(frame.height == expected.1, "Frame \(index) height")
+        }
+    }
+
+    /// Regression guard: a predictor=1 (no predictor) image must still decode
+    /// correctly after the predictor-handling code was introduced.
+    /// `TestData.minimalTIFF` omits the predictor tag (default = 1) so we use
+    /// it as the canonical "no predictor" fixture.
+    @Test("Predictor=1 (default): image decodes without predictor adjustment")
+    func predictorNoneStillDecodes() throws {
+        let data = TestData.minimalTIFF
+        let source = try #require(CGImageSourceCreateWithData(data, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+
+        #expect(image.width == 2)
+        #expect(image.height == 2)
+
+        // minimalTIFF is a solid-white 2x2 RGB. After decode the pixel buffer
+        // should hold 255s for the RGB channels — this verifies that the
+        // absence of a predictor tag does not corrupt the data path.
+        let provider = try #require(image.dataProvider)
+        let pixels = try #require(provider.data)
+        #expect(pixels.count >= 4, "Decoded RGBA buffer must exist")
+        #expect(pixels[0] == 255, "R of pixel (0,0) must be white")
+        #expect(pixels[1] == 255, "G of pixel (0,0) must be white")
+        #expect(pixels[2] == 255, "B of pixel (0,0) must be white")
+    }
+
+    /// Hand-construct a TIFF with `TAG_PREDICTOR = 2` (horizontal) for an
+    /// 8-bit RGB 2x1 image. Pixel 0 = (100, 50, 25); stored differences make
+    /// pixel 1 = (110, 60, 30). After the predictor is reversed the decoded
+    /// bytes must equal the original pixel values.
+    @Test("Predictor=2 (horizontal): pixel differences are reversed on decode")
+    func predictorHorizontalDecodes() throws {
+        let tiff = makePredictorHorizontalTIFF()
+        let source = try #require(CGImageSourceCreateWithData(tiff, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+
+        #expect(image.width == 2)
+        #expect(image.height == 1)
+
+        let provider = try #require(image.dataProvider)
+        let pixels = try #require(provider.data)
+        #expect(pixels.count >= 8, "RGBA buffer must hold 2 pixels")
+
+        // Pixel 0 stored literally: (100, 50, 25).
+        #expect(pixels[0] == 100, "Pixel 0 R")
+        #expect(pixels[1] == 50, "Pixel 0 G")
+        #expect(pixels[2] == 25, "Pixel 0 B")
+
+        // Pixel 1 after predictor reversal: (100+10, 50+10, 25+5).
+        #expect(pixels[4] == 110, "Pixel 1 R after predictor reversal")
+        #expect(pixels[5] == 60, "Pixel 1 G after predictor reversal")
+        #expect(pixels[6] == 30, "Pixel 1 B after predictor reversal")
+    }
+
+    /// Construct a TIFF whose `nextIFDOffset` points back at the first IFD.
+    /// The cycle guard (`visited: Set<Int>`) in `CGImageSource.parseTIFF`
+    /// must break the walk on the second visit, so `CGImageSourceGetCount`
+    /// returns in bounded time (1 page counted, not a hang).
+    @Test("Malformed IFD chain cycle: parse terminates instead of hanging")
+    func malformedIFDChainCycleTerminates() throws {
+        let tiff = makeCyclicIFDTIFF()
+
+        let source = try #require(CGImageSourceCreateWithData(tiff, nil))
+        let count = CGImageSourceGetCount(source)
+
+        // The first IFD is counted, then the self-referencing `nextIFDOffset`
+        // is caught by the cycle guard — so count must be exactly 1 and the
+        // call must terminate (verified implicitly by this test completing).
+        #expect(count == 1, "Cycle guard must stop after the first IFD")
+    }
+
+    // MARK: - TIFF Fixture Builders
+
+    /// Builds a 2x1 RGB 8-bit TIFF with horizontal predictor (tag 317 = 2).
+    /// The pixel data stores pixel 0 verbatim and pixel 1 as
+    /// (pixel1 - pixel0) per channel; after the decoder reverses the
+    /// predictor the original pixel values must be reconstructed.
+    private func makePredictorHorizontalTIFF() -> Data {
+        var data: [UInt8] = []
+
+        // Header
+        data.append(contentsOf: [0x49, 0x49]) // "II"
+        data.append(contentsOf: [0x2A, 0x00]) // magic 42
+        data.append(contentsOf: [0x08, 0x00, 0x00, 0x00]) // first IFD at 8
+
+        // IFD: 11 entries (10 for minimalTIFF + Predictor tag 317)
+        let numEntries: UInt16 = 11
+        data.append(UInt8(numEntries & 0xFF))
+        data.append(UInt8((numEntries >> 8) & 0xFF))
+
+        // Layout plan (little-endian):
+        //   Header: 0..7
+        //   IFD count: 8..9
+        //   11 entries × 12 bytes: 10..141
+        //   Next IFD offset (0): 142..145
+        //   BitsPerSample values (3 SHORTS = 6 bytes): 146..151
+        //   Pixel data (2 pixels × 3 bytes): 152..157
+        let bitsPerSampleOffset: UInt32 = 146
+        let stripOffset: UInt32 = 152
+        let stripByteCount: UInt32 = 6 // 2 pixels * 3 samples * 1 byte
+
+        func appendEntry(tag: UInt16, type: UInt16, count: UInt32, value: UInt32) {
+            data.append(UInt8(tag & 0xFF))
+            data.append(UInt8((tag >> 8) & 0xFF))
+            data.append(UInt8(type & 0xFF))
+            data.append(UInt8((type >> 8) & 0xFF))
+            data.append(UInt8(count & 0xFF))
+            data.append(UInt8((count >> 8) & 0xFF))
+            data.append(UInt8((count >> 16) & 0xFF))
+            data.append(UInt8((count >> 24) & 0xFF))
+            data.append(UInt8(value & 0xFF))
+            data.append(UInt8((value >> 8) & 0xFF))
+            data.append(UInt8((value >> 16) & 0xFF))
+            data.append(UInt8((value >> 24) & 0xFF))
+        }
+
+        appendEntry(tag: 256, type: 3, count: 1, value: 2)  // ImageWidth = 2
+        appendEntry(tag: 257, type: 3, count: 1, value: 1)  // ImageLength = 1
+        appendEntry(tag: 258, type: 3, count: 3, value: bitsPerSampleOffset) // BitsPerSample -> external (8,8,8)
+        appendEntry(tag: 259, type: 3, count: 1, value: 1)  // Compression = none
+        appendEntry(tag: 262, type: 3, count: 1, value: 2)  // PhotometricInterpretation = RGB
+        appendEntry(tag: 273, type: 4, count: 1, value: stripOffset) // StripOffsets
+        appendEntry(tag: 277, type: 3, count: 1, value: 3)  // SamplesPerPixel = 3
+        appendEntry(tag: 278, type: 3, count: 1, value: 1)  // RowsPerStrip = 1
+        appendEntry(tag: 279, type: 4, count: 1, value: stripByteCount) // StripByteCounts
+        appendEntry(tag: 296, type: 3, count: 1, value: 1)  // ResolutionUnit (optional, keeps IFD aligned with minimal fixture)
+        appendEntry(tag: 317, type: 3, count: 1, value: 2)  // Predictor = 2 (horizontal)
+
+        // Next IFD offset = 0 (no more pages)
+        data.append(contentsOf: [0x00, 0x00, 0x00, 0x00])
+
+        // BitsPerSample: three SHORT values (8, 8, 8)
+        data.append(contentsOf: [0x08, 0x00, 0x08, 0x00, 0x08, 0x00])
+
+        // Pixel data with horizontal differencing applied.
+        // Pixel 0 = (100, 50, 25); pixel 1 = pixel 0 + (10, 10, 5) = (110, 60, 30).
+        // Stored: [100, 50, 25, 10, 10, 5].
+        data.append(contentsOf: [100, 50, 25, 10, 10, 5])
+
+        return Data(data)
+    }
+
+    /// Builds a minimal TIFF whose IFD's `nextIFDOffset` points back at the
+    /// start of the IFD, forming a 1-cycle. The first page must be counted,
+    /// then the cycle guard must break the walk.
+    private func makeCyclicIFDTIFF() -> Data {
+        var data: [UInt8] = []
+
+        // Header
+        data.append(contentsOf: [0x49, 0x49]) // "II"
+        data.append(contentsOf: [0x2A, 0x00]) // magic 42
+        data.append(contentsOf: [0x08, 0x00, 0x00, 0x00]) // first IFD at 8
+
+        // IFD at offset 8: 2 entries + nextIFDOffset.
+        // Layout:
+        //   8..9   : numEntries (2)
+        //   10..21 : entry 1 (ImageWidth)
+        //   22..33 : entry 2 (ImageLength)
+        //   34..37 : nextIFDOffset — set to 8 to create a self-cycle
+        let numEntries: UInt16 = 2
+        data.append(UInt8(numEntries & 0xFF))
+        data.append(UInt8((numEntries >> 8) & 0xFF))
+
+        func appendEntry(tag: UInt16, type: UInt16, count: UInt32, value: UInt32) {
+            data.append(UInt8(tag & 0xFF))
+            data.append(UInt8((tag >> 8) & 0xFF))
+            data.append(UInt8(type & 0xFF))
+            data.append(UInt8((type >> 8) & 0xFF))
+            data.append(UInt8(count & 0xFF))
+            data.append(UInt8((count >> 8) & 0xFF))
+            data.append(UInt8((count >> 16) & 0xFF))
+            data.append(UInt8((count >> 24) & 0xFF))
+            data.append(UInt8(value & 0xFF))
+            data.append(UInt8((value >> 8) & 0xFF))
+            data.append(UInt8((value >> 16) & 0xFF))
+            data.append(UInt8((value >> 24) & 0xFF))
+        }
+
+        appendEntry(tag: 256, type: 3, count: 1, value: 1) // ImageWidth = 1
+        appendEntry(tag: 257, type: 3, count: 1, value: 1) // ImageLength = 1
+
+        // nextIFDOffset = 8 (points back at the start of this same IFD).
+        data.append(contentsOf: [0x08, 0x00, 0x00, 0x00])
+
+        return Data(data)
+    }
 }
 
 // MARK: - WebP Format Tests

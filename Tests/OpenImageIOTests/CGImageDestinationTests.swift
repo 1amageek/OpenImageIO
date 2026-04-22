@@ -15,9 +15,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with mutable data for PNG")
     func createWithDataPNG() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -28,9 +28,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with mutable data for JPEG")
     func createWithDataJPEG() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.jpeg",
             1,
             nil
@@ -41,9 +41,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with mutable data for GIF")
     func createWithDataGIF() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "com.compuserve.gif",
             3,
             nil
@@ -54,9 +54,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with mutable data for BMP")
     func createWithDataBMP() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "com.microsoft.bmp",
             1,
             nil
@@ -67,9 +67,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with mutable data for TIFF")
     func createWithDataTIFF() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.tiff",
             1,
             nil
@@ -80,9 +80,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with zero count returns nil")
     func createWithZeroCount() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             0,
             nil
@@ -93,9 +93,9 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with negative count returns nil")
     func createWithNegativeCount() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             -1,
             nil
@@ -106,7 +106,7 @@ struct CGImageDestinationCreationTests {
 
     @Test("Create destination with data consumer")
     func createWithDataConsumer() {
-        let consumerData = NSMutableData()
+        var consumerData = Data()
         guard let consumer = CGDataConsumer(data: consumerData as Data) else {
             #expect(Bool(false), "Failed to create data consumer")
             return
@@ -142,9 +142,9 @@ struct CGImageDestinationImageAdditionTests {
 
     @Test("Add image to destination")
     func addImage() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -160,9 +160,9 @@ struct CGImageDestinationImageAdditionTests {
 
     @Test("Add multiple images to GIF destination")
     func addMultipleImages() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "com.compuserve.gif",
             3,
             nil
@@ -179,9 +179,9 @@ struct CGImageDestinationImageAdditionTests {
 
     @Test("Add image with properties")
     func addImageWithProperties() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.jpeg",
             1,
             nil
@@ -202,9 +202,9 @@ struct CGImageDestinationImageAdditionTests {
         let sourceData = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(sourceData, nil)!
 
-        let destData = NSMutableData()
+        var destData = Data()
         let destination = CGImageDestinationCreateWithData(
-            destData,
+            &destData,
             "public.png",
             1,
             nil
@@ -221,9 +221,9 @@ struct CGImageDestinationImageAdditionTests {
         let sourceData = TestData.minimalPNG
         let source = CGImageSourceCreateWithData(sourceData, nil)!
 
-        let destData = NSMutableData()
+        var destData = Data()
         let destination = CGImageDestinationCreateWithData(
-            destData,
+            &destData,
             "public.png",
             1,
             nil
@@ -238,9 +238,9 @@ struct CGImageDestinationImageAdditionTests {
 
     @Test("Adding images beyond max count is ignored")
     func addImagesBeyondMaxCount() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,  // Only 1 image allowed
             nil
@@ -266,9 +266,9 @@ struct CGImageDestinationPropertiesTests {
 
     @Test("Set global properties")
     func setGlobalProperties() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.jpeg",
             1,
             nil
@@ -288,9 +288,9 @@ struct CGImageDestinationPropertiesTests {
 
     @Test("Add auxiliary data info")
     func addAuxiliaryDataInfo() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -312,9 +312,9 @@ struct CGImageDestinationPropertiesTests {
 
     @Test("Set properties after finalize is ignored")
     func setPropertiesAfterFinalize() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -341,9 +341,9 @@ struct CGImageDestinationFinalizationTests {
 
     @Test("Finalize with image succeeds")
     func finalizeWithImage() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -354,14 +354,14 @@ struct CGImageDestinationFinalizationTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
     }
 
     @Test("Finalize without images fails")
     func finalizeWithoutImages() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -373,9 +373,9 @@ struct CGImageDestinationFinalizationTests {
 
     @Test("Finalize twice fails on second call")
     func finalizeTwice() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -393,9 +393,9 @@ struct CGImageDestinationFinalizationTests {
 
     @Test("Add image after finalize is ignored")
     func addImageAfterFinalize() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             2,
             nil
@@ -458,9 +458,9 @@ struct CGImageDestinationOutputFormatTests {
 
     @Test("Output PNG format")
     func outputPNG() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -471,7 +471,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify PNG signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 8)
         #expect(bytes[0] == 0x89)
         #expect(bytes[1] == 0x50)
@@ -481,9 +481,9 @@ struct CGImageDestinationOutputFormatTests {
 
     @Test("Output JPEG format")
     func outputJPEG() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.jpeg",
             1,
             nil
@@ -494,7 +494,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify JPEG signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 2)
         #expect(bytes[0] == 0xFF)
         #expect(bytes[1] == 0xD8)
@@ -502,9 +502,9 @@ struct CGImageDestinationOutputFormatTests {
 
     @Test("Output GIF format")
     func outputGIF() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "com.compuserve.gif",
             1,
             nil
@@ -515,7 +515,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify GIF signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 6)
         let signature = String(bytes: bytes.prefix(6), encoding: .ascii)
         #expect(signature == "GIF89a")
@@ -523,9 +523,9 @@ struct CGImageDestinationOutputFormatTests {
 
     @Test("Output BMP format")
     func outputBMP() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "com.microsoft.bmp",
             1,
             nil
@@ -536,7 +536,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify BMP signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 2)
         #expect(bytes[0] == 0x42) // 'B'
         #expect(bytes[1] == 0x4D) // 'M'
@@ -544,9 +544,9 @@ struct CGImageDestinationOutputFormatTests {
 
     @Test("Output TIFF format")
     func outputTIFF() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.tiff",
             1,
             nil
@@ -557,7 +557,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify TIFF signature (little-endian)
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 4)
         #expect(bytes[0] == 0x49) // 'I'
         #expect(bytes[1] == 0x49) // 'I'
@@ -588,9 +588,9 @@ struct CGImageDestinationOptionsTests {
 
     @Test("JPEG with compression quality option")
     func jpegWithCompressionQuality() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.jpeg",
             1,
             nil
@@ -604,7 +604,7 @@ struct CGImageDestinationOptionsTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
     }
 
     @Test("Lossy compression quality affects encoding")
@@ -613,20 +613,20 @@ struct CGImageDestinationOptionsTests {
         let image = createTestImage(width: 50, height: 50)
 
         // High quality
-        let highQualityData = NSMutableData()
-        let highQualityDest = CGImageDestinationCreateWithData(highQualityData, "public.jpeg", 1, nil)!
+        var highQualityData = Data()
+        let highQualityDest = CGImageDestinationCreateWithData(&highQualityData, "public.jpeg", 1, nil)!
         CGImageDestinationAddImage(highQualityDest, image, [kCGImageDestinationLossyCompressionQuality: 1.0])
         CGImageDestinationFinalize(highQualityDest)
 
         // Low quality
-        let lowQualityData = NSMutableData()
-        let lowQualityDest = CGImageDestinationCreateWithData(lowQualityData, "public.jpeg", 1, nil)!
+        var lowQualityData = Data()
+        let lowQualityDest = CGImageDestinationCreateWithData(&lowQualityData, "public.jpeg", 1, nil)!
         CGImageDestinationAddImage(lowQualityDest, image, [kCGImageDestinationLossyCompressionQuality: 0.1])
         CGImageDestinationFinalize(lowQualityDest)
 
         // Both should produce valid JPEG
-        #expect(highQualityData.length > 0)
-        #expect(lowQualityData.length > 0)
+        #expect(highQualityData.count > 0)
+        #expect(lowQualityData.count > 0)
 
         // Note: Current JPEG encoder produces consistent output regardless of quality
         // because it uses placeholder data. Full JPEG encoder would produce different sizes.
@@ -644,15 +644,15 @@ struct CGImageDestinationRoundtripTests {
         let originalImage = createTestImage(width: 32, height: 24)
 
         // Encode to PNG
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.png")
 
@@ -670,15 +670,15 @@ struct CGImageDestinationRoundtripTests {
         let originalImage = createTestImage(width: 64, height: 48)
 
         // Encode to JPEG
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify JPEG signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes[0] == 0xFF)
         #expect(bytes[1] == 0xD8)
 
@@ -688,7 +688,7 @@ struct CGImageDestinationRoundtripTests {
         #expect(lastTwo[1] == 0xD9)
 
         // Verify format detection works
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.jpeg")
 
@@ -705,15 +705,15 @@ struct CGImageDestinationRoundtripTests {
         let originalImage = createTestImage(width: 20, height: 15)
 
         // Encode to GIF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "com.compuserve.gif")
 
@@ -731,15 +731,15 @@ struct CGImageDestinationRoundtripTests {
         let originalImage = createTestImage(width: 16, height: 12)
 
         // Encode to BMP
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.microsoft.bmp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode BMP
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "com.microsoft.bmp")
 
@@ -757,15 +757,15 @@ struct CGImageDestinationRoundtripTests {
         let originalImage = createTestImage(width: 8, height: 6)
 
         // Encode to TIFF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.tiff")
 
@@ -785,8 +785,8 @@ struct CGImageDestinationRoundtripTests {
         let frame3 = createTestImage(width: 10, height: 10, fill: 200)
 
         // Encode to animated GIF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 3, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 3, nil)!
         CGImageDestinationAddImage(destination, frame1, nil)
         CGImageDestinationAddImage(destination, frame2, nil)
         CGImageDestinationAddImage(destination, frame3, nil)
@@ -794,7 +794,7 @@ struct CGImageDestinationRoundtripTests {
         #expect(encodeSuccess == true)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
 
         // Verify frame count
@@ -821,12 +821,12 @@ struct CGImageDestinationRoundtripTests {
         for (width, height) in testCases {
             let originalImage = createTestImage(width: width, height: height)
 
-            let data = NSMutableData()
-            let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+            var data = Data()
+            let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
             CGImageDestinationAddImage(destination, originalImage, nil)
             CGImageDestinationFinalize(destination)
 
-            let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+            let source = CGImageSourceCreateWithData(data, nil)!
             let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
             #expect(decodedImage.width == width, "Width mismatch for \(width)x\(height)")
@@ -866,13 +866,13 @@ struct CGImageDestinationRoundtripTests {
         )!
 
         // Encode to PNG
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         CGImageDestinationFinalize(destination)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Verify pixel data
@@ -922,17 +922,17 @@ struct CGImageDestinationRoundtripTests {
         )!
 
         // Encode to JPEG with high quality
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
         let props: [String: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
         CGImageDestinationAddImage(destination, originalImage, props)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true, "JPEG encoding should succeed")
-        #expect(data.length > 0, "JPEG data should not be empty")
+        #expect(data.count > 0, "JPEG data should not be empty")
 
         // Decode JPEG
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         #expect(CGImageSourceGetType(source) == "public.jpeg")
 
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -1006,13 +1006,13 @@ struct CGImageDestinationColorAccuracyTests {
         let originalImage = createImageWithColors(testColors, width: 3, height: 3)
 
         // Encode to PNG
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         CGImageDestinationFinalize(destination)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Verify exact pixel values
@@ -1070,22 +1070,22 @@ struct CGImageDestinationColorAccuracyTests {
         )!
 
         // Encode to JPEG with highest quality
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
         let props: [String: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
         CGImageDestinationAddImage(destination, originalImage, props)
         let encodeSuccess = CGImageDestinationFinalize(destination)
 
         #expect(encodeSuccess == true, "JPEG encoding should succeed")
-        #expect(data.length > 100, "JPEG data should not be empty")
+        #expect(data.count > 100, "JPEG data should not be empty")
 
         // Verify JPEG markers
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes[0] == 0xFF && bytes[1] == 0xD8, "Should have JPEG SOI marker")
         #expect(bytes[bytes.count - 2] == 0xFF && bytes[bytes.count - 1] == 0xD9, "Should have JPEG EOI marker")
 
         // Decode JPEG
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         #expect(CGImageSourceGetType(source) == "public.jpeg", "Should detect JPEG format")
 
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -1111,13 +1111,13 @@ struct CGImageDestinationColorAccuracyTests {
         let originalImage = createImageWithColors(testColors, width: 2, height: 2)
 
         // Encode to GIF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         CGImageDestinationFinalize(destination)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1160,13 +1160,13 @@ struct CGImageDestinationColorAccuracyTests {
         let originalImage = createImageWithColors(testColors, width: 2, height: 2)
 
         // Encode to BMP
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.microsoft.bmp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         CGImageDestinationFinalize(destination)
 
         // Decode BMP
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1196,13 +1196,13 @@ struct CGImageDestinationColorAccuracyTests {
         let originalImage = createImageWithColors(testColors, width: 2, height: 2)
 
         // Encode to TIFF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         CGImageDestinationFinalize(destination)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1224,9 +1224,9 @@ struct CGImageDestinationEqualityTests {
 
     @Test("Same destination is equal to itself")
     func sameDestinationEqual() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -1237,19 +1237,19 @@ struct CGImageDestinationEqualityTests {
 
     @Test("Different destinations are not equal")
     func differentDestinationsNotEqual() {
-        let data1 = NSMutableData()
-        let data2 = NSMutableData()
-        let dest1 = CGImageDestinationCreateWithData(data1, "public.png", 1, nil)!
-        let dest2 = CGImageDestinationCreateWithData(data2, "public.png", 1, nil)!
+        var data1 = Data()
+        var data2 = Data()
+        let dest1 = CGImageDestinationCreateWithData(&data1, "public.png", 1, nil)!
+        let dest2 = CGImageDestinationCreateWithData(&data2, "public.png", 1, nil)!
 
         #expect(dest1 != dest2)
     }
 
     @Test("Destination can be used as dictionary key")
     func destinationAsDictionaryKey() {
-        let data = NSMutableData()
+        var data = Data()
         let destination = CGImageDestinationCreateWithData(
-            data,
+            &data,
             "public.png",
             1,
             nil
@@ -1275,24 +1275,24 @@ struct CGImageDestinationMultiPageTIFFTests {
         let page3 = createTestImage(width: 10, height: 10, fill: 200)
 
         // Encode to multi-page TIFF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 3, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 3, nil)!
         CGImageDestinationAddImage(destination, page1, nil)
         CGImageDestinationAddImage(destination, page2, nil)
         CGImageDestinationAddImage(destination, page3, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify TIFF signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes[0] == 0x49) // 'I'
         #expect(bytes[1] == 0x49) // 'I'
         #expect(bytes[2] == 0x2A) // Magic
         #expect(bytes[3] == 0x00)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.tiff")
 
@@ -1308,16 +1308,16 @@ struct CGImageDestinationMultiPageTIFFTests {
     func singlePageTiffWorks() {
         let image = createTestImage(width: 20, height: 15)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode and verify
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
         #expect(decoded.width == 20)
         #expect(decoded.height == 15)
@@ -1329,17 +1329,17 @@ struct CGImageDestinationMultiPageTIFFTests {
         let page1 = createTestImage(width: 8, height: 8)
         let page2 = createTestImage(width: 16, height: 16)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 2, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 2, nil)!
         CGImageDestinationAddImage(destination, page1, nil)
         CGImageDestinationAddImage(destination, page2, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode first page
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
         #expect(decoded.width == 8)
         #expect(decoded.height == 8)
@@ -1387,8 +1387,8 @@ struct CGImageDestinationWebPEncodingTests {
 
     @Test("Create destination for WebP format")
     func createWebPDestination() {
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)
         #expect(destination != nil)
     }
 
@@ -1396,16 +1396,16 @@ struct CGImageDestinationWebPEncodingTests {
     func webpLosslessEncoding() {
         let image = createTestImage(width: 8, height: 8)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(destination, image, ["lossless": true])
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify RIFF/WEBP signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 12)
         #expect(bytes[0] == 0x52) // R
         #expect(bytes[1] == 0x49) // I
@@ -1421,16 +1421,16 @@ struct CGImageDestinationWebPEncodingTests {
     func webpLossyEncoding() {
         let image = createTestImage(width: 16, height: 16)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.8])
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify RIFF/WEBP signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 12)
         #expect(bytes[0] == 0x52) // R
         #expect(bytes[1] == 0x49) // I
@@ -1443,15 +1443,15 @@ struct CGImageDestinationWebPEncodingTests {
         let originalImage = createTestImage(width: 16, height: 16)
 
         // Encode to WebP (lossless)
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, ["lossless": true])
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
         // Decode WebP - these MUST succeed for the test to be valid
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil, "WebP source creation must succeed")
 
         guard let validSource = source else {
@@ -1476,20 +1476,20 @@ struct CGImageDestinationWebPEncodingTests {
         let image = createTestImage(width: 32, height: 32)
 
         // High quality (lossless)
-        let highQualityData = NSMutableData()
-        let highQualityDest = CGImageDestinationCreateWithData(highQualityData, "org.webmproject.webp", 1, nil)!
+        var highQualityData = Data()
+        let highQualityDest = CGImageDestinationCreateWithData(&highQualityData, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(highQualityDest, image, ["lossless": true])
         CGImageDestinationFinalize(highQualityDest)
 
         // Low quality (lossy)
-        let lowQualityData = NSMutableData()
-        let lowQualityDest = CGImageDestinationCreateWithData(lowQualityData, "org.webmproject.webp", 1, nil)!
+        var lowQualityData = Data()
+        let lowQualityDest = CGImageDestinationCreateWithData(&lowQualityData, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(lowQualityDest, image, [kCGImageDestinationLossyCompressionQuality: 0.1])
         CGImageDestinationFinalize(lowQualityDest)
 
         // Both should produce valid data
-        #expect(highQualityData.length > 0)
-        #expect(lowQualityData.length > 0)
+        #expect(highQualityData.count > 0)
+        #expect(lowQualityData.count > 0)
     }
 }
 
@@ -1532,16 +1532,16 @@ struct CGImageDestinationGIFQuantizationTests {
         // Create image with many unique colors (gradient)
         let image = createGradientImage(width: 32, height: 32)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify GIF signature
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 6)
         #expect(bytes[0] == 0x47) // G
         #expect(bytes[1] == 0x49) // I
@@ -1582,15 +1582,15 @@ struct CGImageDestinationGIFQuantizationTests {
         )!
 
         // Encode to GIF
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 2)
@@ -1603,18 +1603,18 @@ struct CGImageDestinationGIFQuantizationTests {
         let frame1 = createGradientImage(width: 16, height: 16)
         let frame2 = createGradientImage(width: 16, height: 16)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 2, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 2, nil)!
         CGImageDestinationSetProperties(destination, ["delay": 0.1])
         CGImageDestinationAddImage(destination, frame1, nil)
         CGImageDestinationAddImage(destination, frame2, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Decode and verify frame count
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         #expect(CGImageSourceGetCount(source) >= 1)
     }
 }
@@ -1689,14 +1689,14 @@ struct ComprehensiveFormatEncodingTests {
     func pngPreservesColors() {
         let originalImage = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         CGImageDestinationAddImage(destination, originalImage, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 4)
@@ -1712,15 +1712,15 @@ struct ComprehensiveFormatEncodingTests {
     func pngLargeImage() {
         let largeImage = createGradientImage(width: 256, height: 256)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.png", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         CGImageDestinationAddImage(destination, largeImage, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 256)
@@ -1735,11 +1735,11 @@ struct ComprehensiveFormatEncodingTests {
 
         var sizes: [Int] = []
         for quality in [0.1, 0.5, 0.9] {
-            let data = NSMutableData()
-            let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+            var data = Data()
+            let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
             CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality])
             CGImageDestinationFinalize(destination)
-            sizes.append(data.length)
+            sizes.append(data.count)
         }
 
         // Higher quality should generally produce larger files
@@ -1755,14 +1755,14 @@ struct ComprehensiveFormatEncodingTests {
         for (w, h) in dimensions {
             let image = createGradientImage(width: w, height: h)
 
-            let data = NSMutableData()
-            let destination = CGImageDestinationCreateWithData(data, "public.jpeg", 1, nil)!
+            var data = Data()
+            let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
             CGImageDestinationAddImage(destination, image, nil)
             let success = CGImageDestinationFinalize(destination)
 
             #expect(success == true, "JPEG encoding should succeed for \(w)x\(h)")
 
-            let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+            let source = CGImageSourceCreateWithData(data, nil)!
             let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
             #expect(decoded.width == w, "Width should be \(w)")
@@ -1777,22 +1777,22 @@ struct ComprehensiveFormatEncodingTests {
         // Create 64x64 gradient with many unique colors
         let image = createGradientImage(width: 64, height: 64)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
 
         // Verify GIF structure
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes[0] == 0x47) // G
         #expect(bytes[1] == 0x49) // I
         #expect(bytes[2] == 0x46) // F
 
         // Decode and verify
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 64)
@@ -1805,8 +1805,8 @@ struct ComprehensiveFormatEncodingTests {
         let frame2 = createGradientImage(width: 4, height: 4)
         let frame3 = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.compuserve.gif", 3, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 3, nil)!
         CGImageDestinationSetProperties(destination, ["delay": 0.1])
         CGImageDestinationAddImage(destination, frame1, nil)
         CGImageDestinationAddImage(destination, frame2, nil)
@@ -1815,7 +1815,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let count = CGImageSourceGetCount(source)
         #expect(count >= 1)
     }
@@ -1826,19 +1826,19 @@ struct ComprehensiveFormatEncodingTests {
     func bmp24BitEncoding() {
         let image = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.microsoft.bmp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil) // Default 24-bit
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
         // Verify BMP header
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes[0] == 0x42) // B
         #expect(bytes[1] == 0x4D) // M
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 4)
@@ -1849,13 +1849,13 @@ struct ComprehensiveFormatEncodingTests {
     func bmp32BitWithAlpha() {
         let image = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "com.microsoft.bmp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
         CGImageDestinationAddImage(destination, image, ["preserveAlpha": true])
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.length > 0)
+        #expect(data.count > 0)
     }
 
     // MARK: - TIFF Comprehensive Tests
@@ -1866,8 +1866,8 @@ struct ComprehensiveFormatEncodingTests {
         let page2 = createGradientImage(width: 8, height: 8)
         let page3 = createGradientImage(width: 16, height: 16)
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 3, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 3, nil)!
         CGImageDestinationAddImage(destination, page1, nil)
         CGImageDestinationAddImage(destination, page2, nil)
         CGImageDestinationAddImage(destination, page3, nil)
@@ -1875,7 +1875,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
 
         // Verify each page
         let decoded1 = CGImageSourceCreateImageAtIndex(source, 0, nil)!
@@ -1887,14 +1887,14 @@ struct ComprehensiveFormatEncodingTests {
     func tiffColorAccuracy() {
         let image = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "public.tiff", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.tiff", 1, nil)!
         CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)!
+        let source = CGImageSourceCreateWithData(data, nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Get original and decoded pixel data
@@ -1914,15 +1914,15 @@ struct ComprehensiveFormatEncodingTests {
     func webpLosslessPixelData() {
         let image = createColorTestImage()
 
-        let data = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
         CGImageDestinationAddImage(destination, image, ["lossless": true])
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
 
         // Verify RIFF header
-        let bytes = [UInt8](Data(referencing: data))
+        let bytes = [UInt8](data)
         #expect(bytes.count >= 12)
         #expect(bytes[0] == 0x52) // R
         #expect(bytes[1] == 0x49) // I
@@ -1930,7 +1930,7 @@ struct ComprehensiveFormatEncodingTests {
         #expect(bytes[3] == 0x46) // F
 
         // Decode and verify - must succeed
-        let source = CGImageSourceCreateWithData(Data(referencing: data), nil)
+        let source = CGImageSourceCreateWithData(data, nil)
         #expect(source != nil, "WebP source creation must succeed")
 
         guard let validSource = source else {
@@ -1955,15 +1955,15 @@ struct ComprehensiveFormatEncodingTests {
         let image = createGradientImage(width: 32, height: 32)
 
         for quality in [0.1, 0.5, 0.9] {
-            let data = NSMutableData()
-            let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+            var data = Data()
+            let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
             CGImageDestinationAddImage(destination, image, [
                 kCGImageDestinationLossyCompressionQuality: quality
             ])
             let success = CGImageDestinationFinalize(destination)
 
             #expect(success == true, "WebP lossy encoding should succeed at quality \(quality)")
-            #expect(data.length > 0, "WebP data should not be empty at quality \(quality)")
+            #expect(data.count > 0, "WebP data should not be empty at quality \(quality)")
         }
     }
 
@@ -1974,13 +1974,81 @@ struct ComprehensiveFormatEncodingTests {
         for (w, h) in dimensions {
             let image = createGradientImage(width: w, height: h)
 
-            let data = NSMutableData()
-            let destination = CGImageDestinationCreateWithData(data, "org.webmproject.webp", 1, nil)!
+            var data = Data()
+            let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
             CGImageDestinationAddImage(destination, image, ["lossless": true])
             let success = CGImageDestinationFinalize(destination)
 
             #expect(success == true, "WebP encoding should succeed for \(w)x\(h)")
-            #expect(data.length > 0, "WebP data should not be empty for \(w)x\(h)")
+            #expect(data.count > 0, "WebP data should not be empty for \(w)x\(h)")
         }
+    }
+}
+
+// MARK: - CGImageDestination Data + DataBox + CopyData
+
+/// Covers the `CGImageDestinationCreateWithData(_:_:_:_:)` + `DataBox` +
+/// `CGImageDestinationCopyData(_:)` surface. The public API takes an
+/// `inout Data` buffer and also mirrors the encoded blob into the box so
+/// that `CGImageDestinationCopyData` can hand it back by value.
+@Suite("CGImageDestination Data Box Roundtrip")
+struct CGImageDestinationDataBoxTests {
+
+    @Test("PNG roundtrip: inout Data receives a valid PNG blob")
+    func pngRoundtripInoutData() {
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
+        let image = createTestImage(width: 4, height: 4)
+        CGImageDestinationAddImage(destination, image, nil)
+
+        let success = CGImageDestinationFinalize(destination)
+        #expect(success == true)
+        #expect(data.count >= 8, "PNG output must be at least 8 bytes (signature)")
+
+        // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        let header = Array(data.prefix(8))
+        #expect(header == signature, "inout Data must start with the PNG signature")
+    }
+
+    /// `CGImageDestinationCopyData(_:)` returns only the encoded blob from
+    /// the `DataBox`, mirroring what was appended to the caller's `inout
+    /// Data`. Any pre-existing bytes the caller had in `data` before the
+    /// call are NOT part of the CopyData result (the box starts empty).
+    @Test("CopyData returns the encoded blob only")
+    func copyDataMatchesEncoded() {
+        var data = Data([0xDE, 0xAD])  // pre-existing caller bytes
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
+        let image = createTestImage(width: 2, height: 2)
+        CGImageDestinationAddImage(destination, image, nil)
+
+        let success = CGImageDestinationFinalize(destination)
+        #expect(success == true)
+
+        // Caller's inout data: seed bytes preserved, encoded appended after.
+        #expect(data.count > 2, "inout Data should have grown beyond the seed")
+        #expect(data[0] == 0xDE, "Byte 0 of seed preserved in inout Data")
+        #expect(data[1] == 0xAD, "Byte 1 of seed preserved in inout Data")
+
+        // CopyData returns only the encoded blob, no seed bytes.
+        guard let copied = CGImageDestinationCopyData(destination) else {
+            Issue.record("CopyData returned nil after Finalize")
+            return
+        }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        let header = Array(copied.prefix(8))
+        #expect(header == signature, "CopyData must start with the PNG signature (no seed)")
+        #expect(copied.count == data.count - 2, "CopyData size == inout data size minus seed")
+    }
+
+    @Test("CopyData returns nil before Finalize")
+    func copyDataBeforeFinalizeIsNil() {
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
+        let image = createTestImage(width: 2, height: 2)
+        CGImageDestinationAddImage(destination, image, nil)
+
+        let copied = CGImageDestinationCopyData(destination)
+        #expect(copied == nil, "CopyData must return nil until Finalize is called")
     }
 }

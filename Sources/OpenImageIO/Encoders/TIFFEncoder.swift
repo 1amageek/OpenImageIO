@@ -87,8 +87,10 @@ internal struct TIFFEncoder {
             // Build IFD entries
             var entries: [(tag: UInt16, type: UInt16, count: UInt32, value: UInt32)] = []
 
-            // Calculate entry count and additional data offsets
-            let numEntries: UInt16 = hasAlpha ? 12 : 11
+            // Calculate entry count and additional data offsets.
+            // Base: 11 entries (WIDTH..Y_RESOLUTION) + 1 (RESOLUTION_UNIT, always emitted).
+            // hasAlpha adds 1 (EXTRA_SAMPLES).
+            let numEntries: UInt16 = hasAlpha ? 13 : 12
             let ifdSize = 2 + Int(numEntries) * 12 + 4 // count + entries + next IFD offset
 
             // Offset for data that doesn't fit in value field
@@ -123,7 +125,16 @@ internal struct TIFFEncoder {
             extraData.append(contentsOf: uint32ToLE(1))      // Denominator
             extraDataOffset += 8
 
-            // Strip data will follow extra data
+            // Reserve the ExtraSamples extraData slot (only if hasAlpha) BEFORE
+            // computing stripOffset, so stripOffset points past all extraData.
+            var extraSamplesOffset: UInt32 = 0
+            if hasAlpha {
+                extraSamplesOffset = extraDataOffset
+                extraData.append(contentsOf: uint16ToLE(EXTRA_SAMPLE_ASSOCIATED_ALPHA))
+                extraDataOffset += 2
+            }
+
+            // Strip data follows all extra data.
             let stripOffset = extraDataOffset
 
             // Build IFD entries (must be in tag order)
@@ -140,11 +151,6 @@ internal struct TIFFEncoder {
             entries.append((TAG_Y_RESOLUTION, TYPE_RATIONAL, 1, yResolutionOffset))
 
             if hasAlpha {
-                // Extra data for alpha: offset for ExtraSamples value
-                let extraSamplesOffset = extraDataOffset
-                extraData.append(contentsOf: uint16ToLE(EXTRA_SAMPLE_ASSOCIATED_ALPHA))
-                extraDataOffset += 2
-
                 entries.append((TAG_EXTRA_SAMPLES, TYPE_SHORT, 1, extraSamplesOffset))
             }
 

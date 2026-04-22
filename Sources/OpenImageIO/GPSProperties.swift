@@ -3,6 +3,11 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 // Keys for Global Positioning System (GPS) information
+//
+// NOTE: GPS parsing is not yet implemented. These keys are exported for
+// source-level compatibility with Apple's ImageIO, but
+// `CGImageSourceCopyPropertiesAtIndex` does not populate
+// `kCGImagePropertyGPSDictionary` — accessing it returns nil.
 
 @preconcurrency import Foundation
 

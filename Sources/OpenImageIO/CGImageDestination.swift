@@ -11,9 +11,24 @@ public class CGImageDestination: Hashable, Equatable {
 
     // MARK: - Internal Types
 
+    /// Reference-semantics wrapper for a `Data` buffer so that `CGImageDestinationFinalize`
+    /// can publish its output to the caller via either (a) the caller's
+    /// `inout Data` parameter captured as a stable pointer at create-time, or
+    /// (b) a reference held by the destination itself when retrieved via
+    /// `CGImageDestinationCopyData`.
+    ///
+    /// The pointer path relies on Swift's stable storage guarantee for stored
+    /// `var` locals: as long as the caller keeps the original `Data` variable
+    /// alive, the pointer remains valid. The caller contract on
+    /// `CGImageDestinationCreateWithData` documents this requirement.
+    internal final class DataBox {
+        var data: Data = Data()
+        var externalPointer: UnsafeMutablePointer<Data>?
+    }
+
     internal enum OutputType {
         case url(URL)
-        case data(NSMutableData)
+        case data(DataBox)
         case consumer(CGDataConsumer)
     }
 
@@ -73,20 +88,48 @@ public func CGImageDestinationCreateWithURL(
     )
 }
 
-/// Creates an image destination that writes to a mutable data object.
+/// Creates an image destination that writes to a mutable `Data` value.
+///
+/// The `data` parameter is `inout` because `Data` is a Swift value type with
+/// copy-on-write semantics — `NSMutableData` (Apple's `ImageIO` signature) is
+/// not available on WASM. On `CGImageDestinationFinalize`, the encoded bytes
+/// are appended to `data` via a pointer captured here.
+///
+/// Caller contract: `data` must remain alive (as a stored `var` in the
+/// caller's scope) until after `CGImageDestinationFinalize`. Calling
+/// `CGImageDestinationFinalize` after `data` has gone out of scope is
+/// undefined behaviour.
+///
+/// Alternative: use `CGImageDestinationCopyData(_:)` to retrieve the output
+/// by value after finalization, which does not require `inout` lifetime
+/// management.
 public func CGImageDestinationCreateWithData(
-    _ data: NSMutableData,
+    _ data: inout Data,
     _ type: String,
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
     guard count > 0 else { return nil }
+    let box = CGImageDestination.DataBox()
+    box.externalPointer = withUnsafeMutablePointer(to: &data) { $0 }
     return CGImageDestination(
-        output: .data(data),
+        output: .data(box),
         typeIdentifier: type,
         count: count,
         options: options
     )
+}
+
+/// Retrieves the encoded data from an image destination created with
+/// `CGImageDestinationCreateWithData`, after `CGImageDestinationFinalize`
+/// has been called. Returns `nil` for destinations created with a URL or
+/// data consumer, or if finalization has not yet occurred.
+public func CGImageDestinationCopyData(_ idst: CGImageDestination) -> Data? {
+    guard idst.isFinalized else { return nil }
+    if case .data(let box) = idst.output {
+        return box.data
+    }
+    return nil
 }
 
 /// Creates an image destination that writes to the specified data consumer.
@@ -178,8 +221,18 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
         } catch {
             return false
         }
-    case .data(let mutableData):
-        mutableData.append(Data(outputData))
+    case .data(let box):
+        let produced = Data(outputData)
+        // Publish back to the caller's `inout Data`, if still valid. The
+        // caller must have kept the original storage alive per the contract
+        // documented on `CGImageDestinationCreateWithData`. `box.data` mirrors
+        // the final output starting from empty, so it always contains only
+        // the encoded blob (without any pre-existing caller bytes) — this is
+        // what `CGImageDestinationCopyData` returns.
+        box.data = produced
+        if let pointer = box.externalPointer {
+            pointer.pointee.append(produced)
+        }
         return true
     case .consumer(let consumer):
         outputData.withUnsafeBytes { buffer in

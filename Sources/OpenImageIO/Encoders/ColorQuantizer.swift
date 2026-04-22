@@ -175,8 +175,13 @@ internal struct MedianCutQuantizer {
         }
 
         // Build palette lookup for colors not directly in a box
-        let paletteColors = (0..<boxes.count).map { i -> (r: Int, g: Int, b: Int) in
-            (Int(palette[i * 3]), Int(palette[i * 3 + 1]), Int(palette[i * 3 + 2]))
+        var paletteColors: [(r: Int, g: Int, b: Int)] = []
+        paletteColors.reserveCapacity(boxes.count)
+        for i in 0..<boxes.count {
+            let r = Int(palette[i * 3])
+            let g = Int(palette[i * 3 + 1])
+            let b = Int(palette[i * 3 + 2])
+            paletteColors.append((r: r, g: g, b: b))
         }
 
         // Map pixels to indices
@@ -344,8 +349,13 @@ internal struct FloydSteinbergDithering {
         guard pixels.count >= width * height * 3 else { return [] }
 
         // Convert palette to color tuples
-        let paletteColors: [(r: Int, g: Int, b: Int)] = stride(from: 0, to: palette.count, by: 3).map {
-            (Int(palette[$0]), Int(palette[$0 + 1]), Int(palette[$0 + 2]))
+        var paletteColors: [(r: Int, g: Int, b: Int)] = []
+        paletteColors.reserveCapacity(palette.count / 3)
+        for offset in stride(from: 0, to: palette.count, by: 3) {
+            let r = Int(palette[offset])
+            let g = Int(palette[offset + 1])
+            let b = Int(palette[offset + 2])
+            paletteColors.append((r: r, g: g, b: b))
         }
 
         // Create working buffer with signed integers for error accumulation

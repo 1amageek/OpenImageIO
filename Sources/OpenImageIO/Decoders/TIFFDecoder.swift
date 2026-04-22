@@ -25,7 +25,13 @@ internal struct TIFFDecoder {
     private static let TAG_SAMPLES_PER_PIXEL: UInt16 = 277
     private static let TAG_ROWS_PER_STRIP: UInt16 = 278
     private static let TAG_STRIP_BYTE_COUNTS: UInt16 = 279
+    private static let TAG_PREDICTOR: UInt16 = 317
     private static let TAG_EXTRA_SAMPLES: UInt16 = 338
+
+    // Predictor values (TIFF 6.0 / TIFF Technical Note 3)
+    private static let PREDICTOR_NONE: UInt16 = 1
+    private static let PREDICTOR_HORIZONTAL: UInt16 = 2
+    // PREDICTOR_FLOATING_POINT (3) is deliberately not implemented.
 
     // Compression types
     private static let COMPRESSION_NONE: UInt16 = 1
@@ -69,45 +75,44 @@ internal struct TIFFDecoder {
         var rowsPerStrip: Int = 0
         var stripByteCounts: [UInt32] = []
         var hasAlpha: Bool = false
+        /// Predictor tag (317). 1 = no predictor (default), 2 = horizontal
+        /// differencing. Floating-point predictor (3) is not implemented.
+        var predictor: UInt16 = 1
     }
 
     // MARK: - Public API
 
-    /// Decode TIFF data to RGBA pixels
-    static func decode(data: Data) -> DecodeResult? {
+    /// Decode TIFF data to RGBA pixels. Multi-page TIFFs are supported via
+    /// `frameIndex:` (0-based), matching the pattern used by GIFDecoder.
+    static func decode(data: Data, frameIndex: Int = 0) -> DecodeResult? {
         guard data.count >= 8 else { return nil }
+        guard frameIndex >= 0 else { return nil }
 
         return data.withUnsafeBytes { buffer -> DecodeResult? in
             guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
                 return nil
             }
 
-            // Check byte order
-            let byteOrder = UInt16(ptr[0]) | (UInt16(ptr[1]) << 8)
-            let isLittleEndian: Bool
-
-            if byteOrder == LITTLE_ENDIAN_MARKER {
-                isLittleEndian = true
-            } else if byteOrder == BIG_ENDIAN_MARKER {
-                isLittleEndian = false
-            } else {
+            guard let endianness = readHeader(ptr: ptr, dataCount: data.count) else {
                 return nil
             }
+            let isLittleEndian = endianness.isLittleEndian
+            let firstIFDOffset = endianness.firstIFDOffset
 
-            // Verify TIFF magic number
-            let magic = readUInt16(ptr, offset: 2, littleEndian: isLittleEndian)
-            guard magic == TIFF_MAGIC else { return nil }
+            // Walk the IFD chain to locate the requested page. Each IFD ends
+            // with a 4-byte `nextIFDOffset`; 0 terminates the chain.
+            guard let ifdOffset = locateIFD(
+                ptr: ptr,
+                dataCount: data.count,
+                firstIFDOffset: firstIFDOffset,
+                targetIndex: frameIndex,
+                littleEndian: isLittleEndian
+            ) else { return nil }
 
-            // Get IFD offset
-            let ifdOffset = Int(readUInt32(ptr, offset: 4, littleEndian: isLittleEndian))
-            guard ifdOffset > 0 && ifdOffset + 2 < data.count else { return nil }
-
-            // Parse IFD
             guard let info = parseIFD(ptr: ptr, dataCount: data.count, offset: ifdOffset, littleEndian: isLittleEndian) else {
                 return nil
             }
 
-            // Decode image data
             guard let pixels = decodeImageData(ptr: ptr, dataCount: data.count, info: info, littleEndian: isLittleEndian) else {
                 return nil
             }
@@ -119,6 +124,90 @@ internal struct TIFFDecoder {
                 hasAlpha: info.hasAlpha
             )
         }
+    }
+
+    /// Returns the number of pages (IFDs) in the TIFF container, or 0 if the
+    /// container is malformed.
+    static func pageCount(data: Data) -> Int {
+        guard data.count >= 8 else { return 0 }
+
+        return data.withUnsafeBytes { buffer -> Int in
+            guard let ptr = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return 0
+            }
+            guard let endianness = readHeader(ptr: ptr, dataCount: data.count) else {
+                return 0
+            }
+
+            var count = 0
+            var offset = endianness.firstIFDOffset
+            var visited: Set<Int> = []
+
+            while offset > 0 && offset + 2 < data.count {
+                if visited.contains(offset) { break } // cycle guard
+                visited.insert(offset)
+                let numEntries = Int(readUInt16(ptr, offset: offset, littleEndian: endianness.isLittleEndian))
+                let nextOffsetPos = offset + 2 + numEntries * 12
+                guard nextOffsetPos + 4 <= data.count else { break }
+                count += 1
+                offset = Int(readUInt32(ptr, offset: nextOffsetPos, littleEndian: endianness.isLittleEndian))
+            }
+            return count
+        }
+    }
+
+    // MARK: - Header & IFD Chain
+
+    private struct TIFFHeader {
+        let isLittleEndian: Bool
+        let firstIFDOffset: Int
+    }
+
+    private static func readHeader(ptr: UnsafePointer<UInt8>, dataCount: Int) -> TIFFHeader? {
+        guard dataCount >= 8 else { return nil }
+
+        let byteOrder = UInt16(ptr[0]) | (UInt16(ptr[1]) << 8)
+        let isLittleEndian: Bool
+        if byteOrder == LITTLE_ENDIAN_MARKER {
+            isLittleEndian = true
+        } else if byteOrder == BIG_ENDIAN_MARKER {
+            isLittleEndian = false
+        } else {
+            return nil
+        }
+
+        let magic = readUInt16(ptr, offset: 2, littleEndian: isLittleEndian)
+        guard magic == TIFF_MAGIC else { return nil }
+
+        let firstIFDOffset = Int(readUInt32(ptr, offset: 4, littleEndian: isLittleEndian))
+        guard firstIFDOffset > 0 && firstIFDOffset + 2 < dataCount else { return nil }
+
+        return TIFFHeader(isLittleEndian: isLittleEndian, firstIFDOffset: firstIFDOffset)
+    }
+
+    /// Walks the IFD chain to find the byte offset of the Nth IFD (0-based).
+    /// Returns nil if the chain is shorter than `targetIndex + 1`.
+    private static func locateIFD(
+        ptr: UnsafePointer<UInt8>,
+        dataCount: Int,
+        firstIFDOffset: Int,
+        targetIndex: Int,
+        littleEndian: Bool
+    ) -> Int? {
+        var offset = firstIFDOffset
+        var visited: Set<Int> = []
+        for index in 0...targetIndex {
+            guard offset > 0 && offset + 2 < dataCount else { return nil }
+            if visited.contains(offset) { return nil }
+            visited.insert(offset)
+            if index == targetIndex { return offset }
+
+            let numEntries = Int(readUInt16(ptr, offset: offset, littleEndian: littleEndian))
+            let nextOffsetPos = offset + 2 + numEntries * 12
+            guard nextOffsetPos + 4 <= dataCount else { return nil }
+            offset = Int(readUInt32(ptr, offset: nextOffsetPos, littleEndian: littleEndian))
+        }
+        return nil
     }
 
     // MARK: - IFD Parsing
@@ -172,6 +261,9 @@ internal struct TIFFDecoder {
             case TAG_EXTRA_SAMPLES:
                 // If there are extra samples, assume alpha
                 info.hasAlpha = count > 0
+
+            case TAG_PREDICTOR:
+                info.predictor = UInt16(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
 
             default:
                 break
@@ -355,6 +447,21 @@ internal struct TIFFDecoder {
                 return nil
             }
 
+            // Apply predictor (TIFF tag 317) BEFORE sample conversion.
+            // Predictor operates on each scanline independently, component-wise.
+            // Predictor=3 (floating-point) is intentionally not implemented.
+            if info.predictor == PREDICTOR_HORIZONTAL {
+                let rowsInThisStrip = min(info.rowsPerStrip, info.height - rowsDecoded)
+                applyHorizontalPredictor(
+                    stripData: &stripData,
+                    rows: rowsInThisStrip,
+                    width: info.width,
+                    samplesPerPixel: info.samplesPerPixel,
+                    bitsPerSample: bitsPerSample,
+                    littleEndian: littleEndian
+                )
+            }
+
             // Convert strip data to RGBA
             let rowsInStrip = min(info.rowsPerStrip, info.height - rowsDecoded)
             let bytesPerRow = info.width * info.samplesPerPixel * bytesPerSample
@@ -459,6 +566,60 @@ internal struct TIFFDecoder {
         }
 
         return pixels
+    }
+
+    // MARK: - Horizontal Predictor (TIFF tag 317, value 2)
+
+    /// Reverses horizontal differencing encoded by the TIFF horizontal
+    /// predictor. For each row, each sample is the sum of all preceding
+    /// samples of the same channel in that row (wrapping modulo 2^bits).
+    /// Operates in-place on the decompressed strip before RGBA conversion.
+    private static func applyHorizontalPredictor(
+        stripData: inout [UInt8],
+        rows: Int,
+        width: Int,
+        samplesPerPixel: Int,
+        bitsPerSample: Int,
+        littleEndian: Bool
+    ) {
+        let bytesPerSample = (bitsPerSample + 7) / 8
+        let bytesPerRow = width * samplesPerPixel * bytesPerSample
+
+        for row in 0..<rows {
+            let rowStart = row * bytesPerRow
+            guard rowStart + bytesPerRow <= stripData.count else { return }
+
+            switch bitsPerSample {
+            case 8:
+                // 8-bit: each byte is an independent sample. Start at the
+                // second pixel (x=1) and accumulate per-channel.
+                for x in 1..<width {
+                    for s in 0..<samplesPerPixel {
+                        let idx = rowStart + x * samplesPerPixel + s
+                        let prevIdx = rowStart + (x - 1) * samplesPerPixel + s
+                        stripData[idx] = stripData[idx] &+ stripData[prevIdx]
+                    }
+                }
+            case 16:
+                // 16-bit: accumulate per-sample with native endianness.
+                for x in 1..<width {
+                    for s in 0..<samplesPerPixel {
+                        let base = rowStart + x * samplesPerPixel * 2 + s * 2
+                        let prevBase = rowStart + (x - 1) * samplesPerPixel * 2 + s * 2
+                        let loOffset = littleEndian ? 0 : 1
+                        let hiOffset = littleEndian ? 1 : 0
+                        let cur = UInt16(stripData[base + loOffset]) | (UInt16(stripData[base + hiOffset]) << 8)
+                        let prev = UInt16(stripData[prevBase + loOffset]) | (UInt16(stripData[prevBase + hiOffset]) << 8)
+                        let sum = cur &+ prev
+                        stripData[base + loOffset] = UInt8(sum & 0xFF)
+                        stripData[base + hiOffset] = UInt8((sum >> 8) & 0xFF)
+                    }
+                }
+            default:
+                // Non-byte-aligned bit depths are not supported by this decoder.
+                return
+            }
+        }
     }
 
     // MARK: - TIFF LZW Decompression

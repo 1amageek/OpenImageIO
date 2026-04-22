@@ -136,7 +136,7 @@ struct CGDataConsumerTests {
 
     @Test("Create CGDataConsumer with data")
     func createConsumerWithData() {
-        let data = NSMutableData()
+        var data = Data()
         let consumer = CGDataConsumer(data: data as Data)
 
         #expect(consumer != nil)
@@ -162,8 +162,8 @@ struct CGDataConsumerTests {
 
     @Test("CGDataConsumer is equatable by identity")
     func isEquatableByIdentity() {
-        let data1 = NSMutableData()
-        let data2 = NSMutableData()
+        var data1 = Data()
+        var data2 = Data()
         guard let consumer1 = CGDataConsumer(data: data1 as Data),
               let consumer2 = CGDataConsumer(data: data2 as Data) else {
             #expect(Bool(false), "Failed to create consumers")
@@ -176,7 +176,7 @@ struct CGDataConsumerTests {
 
     @Test("CGDataConsumer is hashable")
     func isHashable() {
-        let data = NSMutableData()
+        var data = Data()
         guard let consumer = CGDataConsumer(data: data as Data) else {
             #expect(Bool(false), "Failed to create consumer")
             return

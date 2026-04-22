@@ -148,9 +148,9 @@ import OpenCoreGraphics
 }
 
 @Test func testCGImageDestinationCreateWithData() {
-    let data = NSMutableData()
+    var data = Data()
     let destination = CGImageDestinationCreateWithData(
-        data,
+        &data,
         "public.png",
         1,
         nil
@@ -160,9 +160,9 @@ import OpenCoreGraphics
 }
 
 @Test func testCGImageDestinationAddImageAndFinalize() {
-    let data = NSMutableData()
+    var data = Data()
     let destination = CGImageDestinationCreateWithData(
-        data,
+        &data,
         "public.png",
         1,
         nil
@@ -175,7 +175,7 @@ import OpenCoreGraphics
     let success = CGImageDestinationFinalize(destination)
 
     #expect(success == true)
-    #expect(data.length > 0)
+    #expect(data.count > 0)
 }
 
 // MARK: - CGImageMetadataTag Tests
@@ -267,4 +267,16 @@ import OpenCoreGraphics
     #expect(!kCGImagePropertyGPSDictionary.isEmpty)
     #expect(!kCGImagePropertyGPSLatitude.isEmpty)
     #expect(!kCGImagePropertyGPSLongitude.isEmpty)
+}
+
+// MARK: - Exact String Property Constants
+
+@Test func testFileContentsDictionaryConstantExactValue() {
+    #expect(kCGImagePropertyFileContentsDictionary == "{FileContents}")
+}
+
+@Test func testAnimationPropertyConstantsExactValues() {
+    #expect(kCGImageAnimationStartIndex == "StartIndex")
+    #expect(kCGImageAnimationDelayTime == "DelayTime")
+    #expect(kCGImageAnimationLoopCount == "LoopCount")
 }

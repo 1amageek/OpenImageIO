@@ -3,6 +3,13 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 // Metadata keys for Exchangeable Image File Format (EXIF) data
+//
+// NOTE: EXIF parsing is not yet implemented. These keys are exported for
+// source-level compatibility with Apple's ImageIO, but
+// `CGImageSourceCopyPropertiesAtIndex` does not populate
+// `kCGImagePropertyExifDictionary` — accessing it returns nil.
+// The sole exception is the top-level `kCGImagePropertyOrientation`, which
+// JPEG / TIFF decoders may populate in the future (tag 0x0112).
 
 @preconcurrency import Foundation
 

@@ -335,9 +335,10 @@ internal struct JPEGEncoder {
         var result = [Double](repeating: 0, count: 64)
 
         // Precompute cosine values
-        let cosTable = (0..<8).map { u in
-            (0..<8).map { x in
-                cos((2.0 * Double(x) + 1.0) * Double(u) * .pi / 16.0)
+        var cosTable: [[Double]] = Array(repeating: Array(repeating: 0.0, count: 8), count: 8)
+        for u in 0..<8 {
+            for x in 0..<8 {
+                cosTable[u][x] = cos((2.0 * Double(x) + 1.0) * Double(u) * .pi / 16.0)
             }
         }
 

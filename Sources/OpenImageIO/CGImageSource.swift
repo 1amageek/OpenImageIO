@@ -288,7 +288,11 @@ public class CGImageSource: Hashable, Equatable {
         return gainMapMetadata
     }
 
-    /// Extracts an attribute value from XMP string
+    /// Extracts an attribute value from XMP string.
+    ///
+    /// The two XMP regex patterns are constant string literals, so compiling
+    /// them cannot fail at runtime — a failure here would indicate a
+    /// programmer error at compile-time, which is modelled with `try!`.
     private func extractXMPAttribute(from xmpString: String, attribute: String) -> String? {
         // Pattern: attribute="value" or attribute='value'
         let patterns = [
@@ -297,8 +301,16 @@ public class CGImageSource: Hashable, Equatable {
         ]
 
         for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: []),
-               let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
+            let regex: NSRegularExpression
+            do {
+                regex = try NSRegularExpression(pattern: pattern, options: [])
+            } catch {
+                // String-interpolated `attribute` is always one of the
+                // caller-controlled static identifiers in this file — any
+                // failure here is a programmer error, not runtime data.
+                fatalError("invalid XMP attribute regex: \(error)")
+            }
+            if let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
                match.numberOfRanges > 1,
                let range = Range(match.range(at: 1), in: xmpString) {
                 return String(xmpString[range])
@@ -306,6 +318,14 @@ public class CGImageSource: Hashable, Equatable {
         }
         return nil
     }
+
+    /// Precompiled regex for extracting `Item:Length="N"` out of XMP GContainer.
+    /// The pattern is a compile-time constant — use `try!` because failure is
+    /// a programmer error rather than a recoverable runtime condition.
+    private static let gainMapLengthRegex: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: "Item:Length=\"(\\d+)\"", options: [])
+    }()
 
     /// Extracts the Gain Map length from GContainer directory in XMP
     private func extractGainMapLength(from xmpString: String) -> Int? {
@@ -315,10 +335,8 @@ public class CGImageSource: Hashable, Equatable {
         // First check if GainMap semantic exists
         guard xmpString.contains("GainMap") else { return nil }
 
-        // Try to find Item:Length near GainMap
-        let pattern = "Item:Length=\"(\\d+)\""
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []),
-           let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
+        let regex = Self.gainMapLengthRegex
+        if let match = regex.firstMatch(in: xmpString, options: [], range: NSRange(xmpString.startIndex..., in: xmpString)),
            match.numberOfRanges > 1,
            let range = Range(match.range(at: 1), in: xmpString),
            let length = Int(xmpString[range]) {
@@ -473,39 +491,61 @@ public class CGImageSource: Hashable, Equatable {
             }
         }
 
-        // IFD offset at byte 4
-        let ifdOffset = readUInt32(at: 4)
-        var width = 0
-        var height = 0
+        // Walk the IFD chain so multi-page TIFFs expose the correct imageCount
+        // and per-page properties. Each IFD ends with a 4-byte nextIFDOffset;
+        // 0 terminates the chain.
+        var perPageProperties: [[String: Any]] = []
+        var offset = readUInt32(at: 4)
+        var visited: Set<Int> = []
 
-        if ifdOffset > 0 && ifdOffset + 2 < count {
-            let numEntries = readUInt16(at: ifdOffset)
-            var entryOffset = ifdOffset + 2
+        while offset > 0 && offset + 2 < count {
+            if visited.contains(offset) { break } // cycle guard
+            visited.insert(offset)
 
+            let numEntries = readUInt16(at: offset)
+            let entriesStart = offset + 2
+            let nextOffsetPos = entriesStart + numEntries * 12
+            guard nextOffsetPos + 4 <= count else { break }
+
+            var pageWidth = 0
+            var pageHeight = 0
+
+            var entryOffset = entriesStart
             for _ in 0..<numEntries {
                 guard entryOffset + 12 <= count else { break }
-
                 let tag = readUInt16(at: entryOffset)
                 let value = readUInt32(at: entryOffset + 8)
-
-                if tag == 256 { // ImageWidth
-                    width = value
-                } else if tag == 257 { // ImageLength
-                    height = value
+                if tag == 256 {
+                    pageWidth = value
+                } else if tag == 257 {
+                    pageHeight = value
                 }
-
                 entryOffset += 12
             }
+
+            perPageProperties.append([
+                kCGImagePropertyPixelWidth: pageWidth,
+                kCGImagePropertyPixelHeight: pageHeight,
+                kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
+            ])
+
+            offset = readUInt32(at: nextOffsetPos)
         }
 
-        imageCount = 1
-        properties = [
-            kCGImagePropertyPixelWidth: width,
-            kCGImagePropertyPixelHeight: height,
-            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
-        ]
-        imageProperties = [properties]
-        auxiliaryDataByIndex = [[:]]
+        guard !perPageProperties.isEmpty else {
+            status = .statusInvalidData
+            return
+        }
+
+        imageCount = perPageProperties.count
+        // Top-level `properties` describes the first image for backward
+        // compatibility with single-page callers.
+        properties = perPageProperties[0]
+        if imageCount > 1 {
+            properties[kCGImagePropertyImageCount] = imageCount
+        }
+        imageProperties = perPageProperties
+        auxiliaryDataByIndex = Array(repeating: [:], count: imageCount)
         status = .statusComplete
     }
 
@@ -594,8 +634,15 @@ public class CGImageSource: Hashable, Equatable {
 
 /// Creates an image source that reads from a location specified by a URL.
 public func CGImageSourceCreateWithURL(_ url: URL, _ options: [String: Any]?) -> CGImageSource? {
-    // Read file data
-    guard let data = try? Data(contentsOf: url) else {
+    // Surface the underlying error via the logging stream instead of
+    // swallowing it with `try?` — a missing / unreadable file is a
+    // legitimate nil-returning path, but the failure reason should be
+    // discoverable.
+    let data: Data
+    do {
+        data = try Data(contentsOf: url)
+    } catch {
+        print("CGImageSourceCreateWithURL: failed to read \(url): \(error)")
         return nil
     }
     return CGImageSource(data: data, options: options)
@@ -607,8 +654,13 @@ public func CGImageSourceCreateWithData(_ data: Data, _ options: [String: Any]?)
 }
 
 /// Creates an image source that reads data from the specified data provider.
+///
+/// Materialises every byte of the provider via `copyData()` so that sequential
+/// and callback-based providers work correctly — `provider.data` only returns a
+/// buffer for direct providers and would silently drop the pixel payload for
+/// the other two provider kinds.
 public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: [String: Any]?) -> CGImageSource? {
-    guard let data = provider.data else { return nil }
+    guard let data = provider.copyData() else { return nil }
     return CGImageSource(data: data, options: options)
 }
 
@@ -715,7 +767,7 @@ public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int,
         }
 
     case "public.tiff":
-        if let result = TIFFDecoder.decode(data: isrc.imageData) {
+        if let result = TIFFDecoder.decode(data: isrc.imageData, frameIndex: index) {
             pixelData = result.pixels
             width = result.width
             height = result.height
@@ -874,8 +926,12 @@ public func CGImageSourceUpdateData(_ isrc: CGImageSource, _ data: Data, _ final
 }
 
 /// Updates an incremental image source with a new data provider.
+///
+/// Uses `copyData()` rather than the `data` property so that sequential and
+/// callback-based providers are drained into a materialised buffer instead of
+/// silently leaving the image source's data unchanged.
 public func CGImageSourceUpdateDataProvider(_ isrc: CGImageSource, _ provider: CGDataProvider, _ final: Bool) {
-    if let data = provider.data {
+    if let data = provider.copyData() {
         isrc.imageData = data
     }
     if final {

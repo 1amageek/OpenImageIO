@@ -20,7 +20,10 @@ public let noErr: OSStatus = 0
 // MARK: - Dictionary
 
 /// A dictionary of properties related to the image's on-disk file.
-public let kCGImagePropertyFileContentsDictionary: String = "FileContents"
+///
+/// Matches Apple's CFString value `"{FileContents}"` — the brace convention
+/// identifies dictionary-typed keys in Apple's ImageIO.
+public let kCGImagePropertyFileContentsDictionary: String = "{FileContents}"
 
 // MARK: - Container File Size
 
@@ -166,14 +169,18 @@ public let kCGImagePropertyOpenEXRCompression: String = "Compression"
 
 // MARK: - Animation Properties
 
+// Values match Apple's underlying CFString representations, not the constant
+// identifier names (matches the convention used elsewhere in this file, e.g.
+// `kCGImagePropertyPixelWidth: "PixelWidth"`).
+
 /// A property that specifies the index of the first frame of an animation.
-public let kCGImageAnimationStartIndex: String = "kCGImageAnimationStartIndex"
+public let kCGImageAnimationStartIndex: String = "StartIndex"
 
 /// The number of seconds to wait before displaying the next image in an animated sequence.
-public let kCGImageAnimationDelayTime: String = "kCGImageAnimationDelayTime"
+public let kCGImageAnimationDelayTime: String = "DelayTime"
 
 /// The number of times to repeat the animated sequence.
-public let kCGImageAnimationLoopCount: String = "kCGImageAnimationLoopCount"
+public let kCGImageAnimationLoopCount: String = "LoopCount"
 
 // MARK: - Animation Status
 

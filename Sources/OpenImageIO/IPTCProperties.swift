@@ -3,6 +3,11 @@
 //
 // Full API compatibility with Apple's ImageIO framework
 // Metadata keys for International Press Telecommunications Council (IPTC) data
+//
+// NOTE: IPTC parsing is not yet implemented. These keys are exported for
+// source-level compatibility with Apple's ImageIO, but
+// `CGImageSourceCopyPropertiesAtIndex` does not populate
+// `kCGImagePropertyIPTCDictionary` — accessing it returns nil.
 
 @preconcurrency import Foundation
 

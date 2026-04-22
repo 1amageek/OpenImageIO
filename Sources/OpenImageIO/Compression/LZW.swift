@@ -82,9 +82,15 @@ private struct LZWDecoder {
         var bitReader = LZWBitReader(data: data)
 
         var prevCode: Int? = nil
+        // Tracks whether the stream terminated cleanly with an explicit end
+        // code. A truncated bitstream (readBits returning nil without us ever
+        // seeing endCode) is an error — treating it the same as endCode
+        // silently produces partial output for corrupted GIFs.
+        var sawEndCode = false
 
         while true {
             guard let code = bitReader.readBits(codeSize) else {
+                // Bitstream exhausted without an explicit end code: truncated.
                 break
             }
 
@@ -95,6 +101,7 @@ private struct LZWDecoder {
             }
 
             if code == endCode {
+                sawEndCode = true
                 break
             }
 
@@ -134,6 +141,11 @@ private struct LZWDecoder {
 
             prevCode = code
         }
+
+        // A well-formed GIF LZW stream must terminate with endCode. If we
+        // fell out of the loop because readBits returned nil, the stream was
+        // truncated — fail rather than returning partial data.
+        guard sawEndCode else { return nil }
 
         return Data(output)
     }
