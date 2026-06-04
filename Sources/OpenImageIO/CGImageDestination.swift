@@ -11,19 +11,9 @@ public class CGImageDestination: Hashable, Equatable {
 
     // MARK: - Internal Types
 
-    /// Reference-semantics wrapper for a `Data` buffer so that `CGImageDestinationFinalize`
-    /// can publish its output to the caller via either (a) the caller's
-    /// `inout Data` parameter captured as a stable pointer at create-time, or
-    /// (b) a reference held by the destination itself when retrieved via
-    /// `CGImageDestinationCopyData`.
-    ///
-    /// The pointer path relies on Swift's stable storage guarantee for stored
-    /// `var` locals: as long as the caller keeps the original `Data` variable
-    /// alive, the pointer remains valid. The caller contract on
-    /// `CGImageDestinationCreateWithData` documents this requirement.
+    /// Reference-semantics wrapper for encoded data.
     internal final class DataBox {
         var data: Data = Data()
-        var externalPointer: UnsafeMutablePointer<Data>?
     }
 
     internal enum OutputType {
@@ -92,17 +82,9 @@ public func CGImageDestinationCreateWithURL(
 ///
 /// The `data` parameter is `inout` because `Data` is a Swift value type with
 /// copy-on-write semantics — `NSMutableData` (Apple's `ImageIO` signature) is
-/// not available on WASM. On `CGImageDestinationFinalize`, the encoded bytes
-/// are appended to `data` via a pointer captured here.
-///
-/// Caller contract: `data` must remain alive (as a stored `var` in the
-/// caller's scope) until after `CGImageDestinationFinalize`. Calling
-/// `CGImageDestinationFinalize` after `data` has gone out of scope is
-/// undefined behaviour.
-///
-/// Alternative: use `CGImageDestinationCopyData(_:)` to retrieve the output
-/// by value after finalization, which does not require `inout` lifetime
-/// management.
+/// not available on WASM. Swift does not allow safely escaping the `inout`
+/// storage until `CGImageDestinationFinalize`, so callers should retrieve the
+/// produced bytes with `CGImageDestinationCopyData(_:)` after finalization.
 public func CGImageDestinationCreateWithData(
     _ data: inout Data,
     _ type: String,
@@ -111,7 +93,7 @@ public func CGImageDestinationCreateWithData(
 ) -> CGImageDestination? {
     guard count > 0 else { return nil }
     let box = CGImageDestination.DataBox()
-    box.externalPointer = withUnsafeMutablePointer(to: &data) { $0 }
+    box.data = data
     return CGImageDestination(
         output: .data(box),
         typeIdentifier: type,
@@ -223,22 +205,13 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
         }
     case .data(let box):
         let produced = Data(outputData)
-        // Publish back to the caller's `inout Data`, if still valid. The
-        // caller must have kept the original storage alive per the contract
-        // documented on `CGImageDestinationCreateWithData`. `box.data` mirrors
-        // the final output starting from empty, so it always contains only
-        // the encoded blob (without any pre-existing caller bytes) — this is
-        // what `CGImageDestinationCopyData` returns.
         box.data = produced
-        if let pointer = box.externalPointer {
-            pointer.pointee.append(produced)
-        }
         return true
     case .consumer(let consumer):
-        outputData.withUnsafeBytes { buffer in
-            _ = consumer.putBytes(buffer.baseAddress, count: buffer.count)
+        let written = outputData.withUnsafeBytes { buffer in
+            consumer.putBytes(buffer.baseAddress, count: buffer.count)
         }
-        return true
+        return written == outputData.count
     }
 }
 

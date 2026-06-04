@@ -24,15 +24,17 @@ internal struct WebPEncoder {
     /// - Parameters:
     ///   - image: The image to encode
     ///   - options: Encoding options
-    ///     - "lossless": Bool (default: true) - Use lossless VP8L encoding
+    ///     - "lossless": Bool (default: false) - Use lossless VP8L encoding
     ///     - "quality": Double (0.0-1.0, default: 0.8) - Quality for lossy encoding
     /// - Returns: WebP data or nil if encoding fails
     static func encode(image: CGImage, options: [String: Any]? = nil) -> Data? {
-        let lossless = (options?["lossless"] as? Bool) ?? true
+        let lossless = (options?["lossless"] as? Bool) ?? false
         let quality = (options?["quality"] as? Double) ?? 0.8
 
         if lossless {
-            return encodeVP8L(image: image)
+            // VP8L requires Huffman-coded image data. Returning nil is safer
+            // than emitting a RIFF container with a non-conformant VP8L payload.
+            return nil
         } else {
             return encodeVP8(image: image, quality: quality)
         }

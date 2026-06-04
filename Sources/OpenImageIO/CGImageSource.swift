@@ -655,12 +655,9 @@ public func CGImageSourceCreateWithData(_ data: Data, _ options: [String: Any]?)
 
 /// Creates an image source that reads data from the specified data provider.
 ///
-/// Materialises every byte of the provider via `copyData()` so that sequential
-/// and callback-based providers work correctly — `provider.data` only returns a
-/// buffer for direct providers and would silently drop the pixel payload for
-/// the other two provider kinds.
+/// Materialises every byte of the provider into a Swift `Data` value.
 public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: [String: Any]?) -> CGImageSource? {
-    guard let data = provider.copyData() else { return nil }
+    guard let data = provider.data else { return nil }
     return CGImageSource(data: data, options: options)
 }
 
@@ -927,11 +924,9 @@ public func CGImageSourceUpdateData(_ isrc: CGImageSource, _ data: Data, _ final
 
 /// Updates an incremental image source with a new data provider.
 ///
-/// Uses `copyData()` rather than the `data` property so that sequential and
-/// callback-based providers are drained into a materialised buffer instead of
-/// silently leaving the image source's data unchanged.
+/// Uses the provider's materialised data snapshot.
 public func CGImageSourceUpdateDataProvider(_ isrc: CGImageSource, _ provider: CGDataProvider, _ final: Bool) {
-    if let data = provider.copyData() {
+    if let data = provider.data {
         isrc.imageData = data
     }
     if final {
