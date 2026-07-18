@@ -208,10 +208,6 @@ public let kCGImagePropertyExifDateTimeDigitized: String = "DateTimeDigitized"
 /// The fraction of seconds for the date and time tag.
 public let kCGImagePropertyExifSubsecTime: String = "SubsecTime"
 
-/// The fraction of seconds for the original date and time tag (deprecated spelling).
-@available(*, deprecated, renamed: "kCGImagePropertyExifSubsecTimeOriginal")
-public let kCGImagePropertyExifSubsecTimeOrginal: String = "SubsecTimeOriginal"
-
 /// The fraction of seconds for the original date and time tag.
 public let kCGImagePropertyExifSubsecTimeOriginal: String = "SubsecTimeOriginal"
 
