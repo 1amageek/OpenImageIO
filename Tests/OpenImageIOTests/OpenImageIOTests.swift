@@ -175,7 +175,7 @@ import OpenCoreGraphics
     let success = CGImageDestinationFinalize(destination)
 
     #expect(success == true)
-    #expect(data.count > 0)
+    #expect((CGImageDestinationCopyData(destination) ?? Data()).count > 0)
 }
 
 // MARK: - CGImageMetadataTag Tests

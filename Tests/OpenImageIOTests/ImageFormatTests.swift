@@ -387,7 +387,8 @@ struct TIFFFormatTests {
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true, "Multi-page TIFF encode must succeed")
 
-        let source = try #require(CGImageSourceCreateWithData(data, nil))
+        let encoded = try #require(CGImageDestinationCopyData(destination))
+        let source = try #require(CGImageSourceCreateWithData(encoded, nil))
         #expect(
             CGImageSourceGetCount(source) == images.count,
             "Source must report 3 pages"
@@ -616,29 +617,13 @@ struct WebPFormatTests {
         #expect(height != nil)
     }
 
-    @Test("Decode WebP to CGImage")
-    func decodeToCGImage() {
+    @Test("WebP pixel decoding is unsupported")
+    func pixelDecodingIsUnsupported() {
         let data = TestData.minimalWebP
         let source = CGImageSourceCreateWithData(data, nil)!
 
-        // Verify format detection works
         #expect(CGImageSourceGetType(source) == "org.webmproject.webp")
-
-        // Try to decode - minimalWebP is synthetic VP8 data
-        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-
-        // If decoding succeeds, verify dimensions
-        if let img = image {
-            #expect(img.width == 16, "Width should be 16")
-            #expect(img.height == 16, "Height should be 16")
-        } else {
-            // Fallback: verify that properties were parsed correctly
-            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
-            let width = props[kCGImagePropertyPixelWidth] as? Int
-            let height = props[kCGImagePropertyPixelHeight] as? Int
-            #expect(width != nil, "Width should be parsed from VP8 header")
-            #expect(height != nil, "Height should be parsed from VP8 header")
-        }
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
     }
 
     @Test("WebP color model")

@@ -681,8 +681,7 @@ public func CGImageSourceCopyTypeIdentifiers() -> [String] {
         "public.jpeg",
         "com.compuserve.gif",
         "com.microsoft.bmp",
-        "public.tiff",
-        "org.webmproject.webp"
+        "public.tiff"
     ]
 }
 
@@ -765,14 +764,6 @@ public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int,
 
     case "public.tiff":
         if let result = TIFFDecoder.decode(data: isrc.imageData, frameIndex: index) {
-            pixelData = result.pixels
-            width = result.width
-            height = result.height
-            hasAlpha = result.hasAlpha
-        }
-
-    case "org.webmproject.webp":
-        if let result = WebPDecoder.decode(data: isrc.imageData) {
             pixelData = result.pixels
             width = result.width
             height = result.height

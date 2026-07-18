@@ -1,8 +1,8 @@
 # OpenImageIO
 
-A Swift library providing **full API compatibility with Apple's ImageIO framework** for WebAssembly (WASM) and other non-Apple platforms.
+A Swift library providing ImageIO-compatible APIs and pure-Swift codecs for WebAssembly (WASM) and other non-Apple platforms.
 
-[![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/Swift-6.3.1-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-WASM%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
@@ -24,8 +24,8 @@ let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 
 ## Features
 
-- **Full API Compatibility** - Identical type names, method signatures, and property names as Apple's ImageIO
-- **Multiple Format Support** - PNG, JPEG, GIF, BMP, TIFF, WebP
+- **ImageIO-Compatible Surface** - Familiar source, destination, metadata, and property APIs using WASM-safe Swift types
+- **Externally Verified Codecs** - PNG, JPEG, GIF, BMP, and TIFF
 - **Image Sources** - Read and decode image data with `CGImageSource`
 - **Image Destinations** - Encode and write image data with `CGImageDestination`
 - **Rich Metadata Support** - EXIF, IPTC, GPS, XMP, TIFF, and format-specific metadata
@@ -35,7 +35,7 @@ let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 
 ## Requirements
 
-- Swift 6.2+
+- Swift 6.3.1+
 - For WASM: SwiftWasm toolchain
 
 ## Installation
@@ -116,10 +116,10 @@ if let gps = properties![kCGImagePropertyGPSDictionary as String] as? [String: A
 ### Writing Images
 
 ```swift
-let data = CFMutableData()
+var data = Data()
 let destination = CGImageDestinationCreateWithData(
-    data,
-    "public.png" as CFString,
+    &data,
+    "public.png",
     1,
     nil
 )!
@@ -127,20 +127,20 @@ let destination = CGImageDestinationCreateWithData(
 CGImageDestinationAddImage(destination, image, nil)
 
 if CGImageDestinationFinalize(destination) {
-    // data now contains the encoded PNG
+    let encodedPNG = CGImageDestinationCopyData(destination)
 }
 ```
 
 ### Writing JPEG with Quality
 
 ```swift
-let options: CFDictionary = [
-    kCGImageDestinationLossyCompressionQuality as String: 0.8
+let options: [String: Any] = [
+    kCGImageDestinationLossyCompressionQuality: 0.8
 ]
 
 let destination = CGImageDestinationCreateWithData(
-    data,
-    "public.jpeg" as CFString,
+    &data,
+    "public.jpeg",
     1,
     nil
 )!
@@ -201,12 +201,12 @@ CGImageSourceUpdateData(source, completeData, true)
 | GIF | ✅ | ✅ | `com.compuserve.gif` |
 | BMP | ✅ | ✅ | `com.microsoft.bmp` |
 | TIFF | ✅ | ✅ | `public.tiff` |
-| WebP | ✅ | ✅ | `org.webmproject.webp` |
 
 ### Unsupported Formats
 
 | Format | Status | Reason |
 |--------|--------|--------|
+| WebP | ❌ | Container detection and metadata constants do not constitute a conforming VP8/VP8L pixel codec |
 | HEIF/HEIC | ❌ | Requires HEVC (H.265) codec - complex implementation with patent licensing |
 | AVIF | ❌ | Requires AV1 codec |
 | RAW | ❌ | Camera-specific formats (CR2, NEF, ARW, etc.) |
@@ -227,31 +227,33 @@ CGImageSourceUpdateData(source, completeData, true)
 ## Building
 
 ```bash
-# Build for current platform
+# Build for the current platform
 swift build
 
-# Build for WebAssembly (requires SwiftWasm)
-swift build --triple wasm32-unknown-wasi
+# Run a focused native test target with a 30-second process timeout
+perl -e 'alarm 30; exec @ARGV' -- \
+  xcodebuild test -scheme OpenImageIO -destination 'platform=macOS' \
+  -only-testing:OpenImageIOTests
 
-# Run tests
-swift test
+# Build for WebAssembly
+swift build --swift-sdk swift-6.3.1-RELEASE_wasm
 ```
 
 ## WASM-Build Smoke Test
 
-OpenImageIO has no browser-side runtime — it is a pure-Swift codec library
-with no WebGPU or JavaScriptKit dependency. The only per-platform regression
-we can catch is the WASM toolchain failing to compile the sources. The
-script at `tests/wasm-build.sh` does exactly that:
+OpenImageIO is a pure-Swift codec library with no WebGPU dependency. Its E2E
+suite builds a WASM smoke executable and runs the generated module in a real
+browser, in addition to the package build check:
 
 ```bash
 bash tests/wasm-build.sh
-# Exits 0 on success, nonzero on compile failure.
-# Uses swift-6.3.1-RELEASE_wasm by default; override via WASM_SDK=<name>.
+cd Tests/e2e && npm test
 ```
 
-This is the tier-3 "WASM-build smoke" described in the workspace
-`CLAUDE.md`. Run it before cutting a release.
+The current verified baseline is 267 native tests plus Apple ImageIO
+external-conformance and browser checks for PNG, JPEG, GIF, BMP, and TIFF.
+This is evidence for those exercised paths, not a claim of complete ImageIO
+parity.
 
 ## Cross-Platform Pattern
 
@@ -267,15 +269,16 @@ import OpenImageIO
 
 func processImage(data: Data) -> (width: Int, height: Int)? {
     #if canImport(ImageIO)
-    let cfData = data as CFData
-    #else
-    let cfData = CFData(bytes: Array(data))
-    #endif
-
-    guard let source = CGImageSourceCreateWithData(cfData, nil),
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
         return nil
     }
+    #else
+    guard let source = CGImageSourceCreateWithData(data, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+        return nil
+    }
+    #endif
 
     return (image.width, image.height)
 }

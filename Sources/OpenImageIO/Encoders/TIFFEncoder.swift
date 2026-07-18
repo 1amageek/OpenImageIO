@@ -125,15 +125,6 @@ internal struct TIFFEncoder {
             extraData.append(contentsOf: uint32ToLE(1))      // Denominator
             extraDataOffset += 8
 
-            // Reserve the ExtraSamples extraData slot (only if hasAlpha) BEFORE
-            // computing stripOffset, so stripOffset points past all extraData.
-            var extraSamplesOffset: UInt32 = 0
-            if hasAlpha {
-                extraSamplesOffset = extraDataOffset
-                extraData.append(contentsOf: uint16ToLE(EXTRA_SAMPLE_ASSOCIATED_ALPHA))
-                extraDataOffset += 2
-            }
-
             // Strip data follows all extra data.
             let stripOffset = extraDataOffset
 
@@ -151,7 +142,11 @@ internal struct TIFFEncoder {
             entries.append((TAG_Y_RESOLUTION, TYPE_RATIONAL, 1, yResolutionOffset))
 
             if hasAlpha {
-                entries.append((TAG_EXTRA_SAMPLES, TYPE_SHORT, 1, extraSamplesOffset))
+                // A single SHORT value occupies two bytes and must be stored
+                // directly in the four-byte IFD value field. Treating it as
+                // an offset produces a structurally invalid TIFF for external
+                // readers even though the local decoder tolerated it.
+                entries.append((TAG_EXTRA_SAMPLES, TYPE_SHORT, 1, UInt32(EXTRA_SAMPLE_ASSOCIATED_ALPHA)))
             }
 
             entries.append((TAG_RESOLUTION_UNIT, TYPE_SHORT, 1, 2)) // Inches

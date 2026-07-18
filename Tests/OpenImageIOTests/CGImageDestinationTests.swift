@@ -8,6 +8,10 @@ import Foundation
 @testable import OpenImageIO
 import OpenCoreGraphics
 
+private func finalizedData(_ destination: CGImageDestination, fallback data: Data = Data()) -> Data {
+    CGImageDestinationCopyData(destination) ?? data
+}
+
 // MARK: - CGImageDestination Creation Tests
 
 @Suite("CGImageDestination Creation")
@@ -354,7 +358,7 @@ struct CGImageDestinationFinalizationTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
     }
 
     @Test("Finalize without images fails")
@@ -471,7 +475,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify PNG signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 8)
         #expect(bytes[0] == 0x89)
         #expect(bytes[1] == 0x50)
@@ -494,7 +498,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify JPEG signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 2)
         #expect(bytes[0] == 0xFF)
         #expect(bytes[1] == 0xD8)
@@ -515,7 +519,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify GIF signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 6)
         let signature = String(bytes: bytes.prefix(6), encoding: .ascii)
         #expect(signature == "GIF89a")
@@ -536,7 +540,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify BMP signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 2)
         #expect(bytes[0] == 0x42) // 'B'
         #expect(bytes[1] == 0x4D) // 'M'
@@ -557,7 +561,7 @@ struct CGImageDestinationOutputFormatTests {
         CGImageDestinationFinalize(destination)
 
         // Verify TIFF signature (little-endian)
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 4)
         #expect(bytes[0] == 0x49) // 'I'
         #expect(bytes[1] == 0x49) // 'I'
@@ -604,7 +608,7 @@ struct CGImageDestinationOptionsTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
     }
 
     @Test("Lossy compression quality affects encoding")
@@ -625,8 +629,8 @@ struct CGImageDestinationOptionsTests {
         CGImageDestinationFinalize(lowQualityDest)
 
         // Both should produce valid JPEG
-        #expect(highQualityData.count > 0)
-        #expect(lowQualityData.count > 0)
+        #expect((CGImageDestinationCopyData(highQualityDest) ?? Data()).count > 0)
+        #expect((CGImageDestinationCopyData(lowQualityDest) ?? Data()).count > 0)
 
         // Note: Current JPEG encoder produces consistent output regardless of quality
         // because it uses placeholder data. Full JPEG encoder would produce different sizes.
@@ -649,10 +653,10 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.png")
 
@@ -675,10 +679,10 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Verify JPEG signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0xFF)
         #expect(bytes[1] == 0xD8)
 
@@ -688,7 +692,7 @@ struct CGImageDestinationRoundtripTests {
         #expect(lastTwo[1] == 0xD9)
 
         // Verify format detection works
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.jpeg")
 
@@ -710,10 +714,10 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "com.compuserve.gif")
 
@@ -736,10 +740,10 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode BMP
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "com.microsoft.bmp")
 
@@ -762,10 +766,10 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationAddImage(destination, originalImage, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.tiff")
 
@@ -794,7 +798,7 @@ struct CGImageDestinationRoundtripTests {
         #expect(encodeSuccess == true)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
 
         // Verify frame count
@@ -826,7 +830,7 @@ struct CGImageDestinationRoundtripTests {
             CGImageDestinationAddImage(destination, originalImage, nil)
             CGImageDestinationFinalize(destination)
 
-            let source = CGImageSourceCreateWithData(data, nil)!
+            let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
             let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
             #expect(decodedImage.width == width, "Width mismatch for \(width)x\(height)")
@@ -872,7 +876,7 @@ struct CGImageDestinationRoundtripTests {
         CGImageDestinationFinalize(destination)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Verify pixel data
@@ -929,10 +933,10 @@ struct CGImageDestinationRoundtripTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true, "JPEG encoding should succeed")
-        #expect(data.count > 0, "JPEG data should not be empty")
+        #expect(finalizedData(destination, fallback: data).count > 0, "JPEG data should not be empty")
 
         // Decode JPEG
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         #expect(CGImageSourceGetType(source) == "public.jpeg")
 
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -1012,7 +1016,7 @@ struct CGImageDestinationColorAccuracyTests {
         CGImageDestinationFinalize(destination)
 
         // Decode PNG
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Verify exact pixel values
@@ -1077,15 +1081,15 @@ struct CGImageDestinationColorAccuracyTests {
         let encodeSuccess = CGImageDestinationFinalize(destination)
 
         #expect(encodeSuccess == true, "JPEG encoding should succeed")
-        #expect(data.count > 100, "JPEG data should not be empty")
+        #expect(finalizedData(destination, fallback: data).count > 100, "JPEG data should not be empty")
 
         // Verify JPEG markers
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0xFF && bytes[1] == 0xD8, "Should have JPEG SOI marker")
         #expect(bytes[bytes.count - 2] == 0xFF && bytes[bytes.count - 1] == 0xD9, "Should have JPEG EOI marker")
 
         // Decode JPEG
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         #expect(CGImageSourceGetType(source) == "public.jpeg", "Should detect JPEG format")
 
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -1117,7 +1121,7 @@ struct CGImageDestinationColorAccuracyTests {
         CGImageDestinationFinalize(destination)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1166,7 +1170,7 @@ struct CGImageDestinationColorAccuracyTests {
         CGImageDestinationFinalize(destination)
 
         // Decode BMP
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1202,7 +1206,7 @@ struct CGImageDestinationColorAccuracyTests {
         CGImageDestinationFinalize(destination)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decodedImage = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decodedImage.width == 2)
@@ -1282,17 +1286,17 @@ struct CGImageDestinationMultiPageTIFFTests {
         CGImageDestinationAddImage(destination, page3, nil)
         let encodeSuccess = CGImageDestinationFinalize(destination)
         #expect(encodeSuccess == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Verify TIFF signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0x49) // 'I'
         #expect(bytes[1] == 0x49) // 'I'
         #expect(bytes[2] == 0x2A) // Magic
         #expect(bytes[3] == 0x00)
 
         // Decode TIFF
-        let source = CGImageSourceCreateWithData(data, nil)
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.tiff")
 
@@ -1314,10 +1318,10 @@ struct CGImageDestinationMultiPageTIFFTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode and verify
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
         #expect(decoded.width == 20)
         #expect(decoded.height == 15)
@@ -1336,160 +1340,25 @@ struct CGImageDestinationMultiPageTIFFTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode first page
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
         #expect(decoded.width == 8)
         #expect(decoded.height == 8)
     }
 }
 
-// MARK: - CGImageDestination WebP Encoding Tests
+// MARK: - CGImageDestination Unsupported WebP Encoding
 
-@Suite("CGImageDestination WebP Encoding")
-struct CGImageDestinationWebPEncodingTests {
-
-    private func createTestImage(width: Int, height: Int) -> CGImage {
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        for y in 0..<height {
-            for x in 0..<width {
-                let i = (y * width + x) * 4
-                pixels[i] = UInt8((x * 255) / max(width - 1, 1))     // R
-                pixels[i + 1] = UInt8((y * 255) / max(height - 1, 1)) // G
-                pixels[i + 2] = 128                                    // B
-                pixels[i + 3] = 255                                    // A
-            }
-        }
-
-        let dataProvider = CGDataProvider(data: Data(pixels))
-        return CGImage(
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: width * 4,
-            space: CGColorSpace(name: CGColorSpace.sRGB)!,
-            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-            provider: dataProvider,
-            decode: nil,
-            shouldInterpolate: false,
-            intent: .defaultIntent
-        )!
-    }
-
-    @Test("WebP is in supported type identifiers")
-    func webpInTypeIdentifiers() {
-        let types = CGImageDestinationCopyTypeIdentifiers()
-        #expect(types.contains("org.webmproject.webp"))
-    }
-
-    @Test("Create destination for WebP format")
-    func createWebPDestination() {
+@Suite("CGImageDestination Unsupported WebP Encoding")
+struct CGImageDestinationUnsupportedWebPEncodingTests {
+    @Test("WebP is not advertised or accepted as a destination")
+    func webpDestinationIsUnavailable() {
+        #expect(!CGImageDestinationCopyTypeIdentifiers().contains("org.webmproject.webp"))
         var data = Data()
-        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)
-        #expect(destination != nil)
-    }
-
-    @Test("WebP lossless encoding produces valid data")
-    func webpLosslessEncoding() {
-        let image = createTestImage(width: 8, height: 8)
-
-        var data = Data()
-        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(destination, image, ["lossless": true])
-        let success = CGImageDestinationFinalize(destination)
-
-        #expect(success == true)
-        #expect(data.count > 0)
-
-        // Verify RIFF/WEBP signature
-        let bytes = [UInt8](data)
-        #expect(bytes.count >= 12)
-        #expect(bytes[0] == 0x52) // R
-        #expect(bytes[1] == 0x49) // I
-        #expect(bytes[2] == 0x46) // F
-        #expect(bytes[3] == 0x46) // F
-        #expect(bytes[8] == 0x57) // W
-        #expect(bytes[9] == 0x45) // E
-        #expect(bytes[10] == 0x42) // B
-        #expect(bytes[11] == 0x50) // P
-    }
-
-    @Test("WebP lossy encoding produces valid data")
-    func webpLossyEncoding() {
-        let image = createTestImage(width: 16, height: 16)
-
-        var data = Data()
-        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.8])
-        let success = CGImageDestinationFinalize(destination)
-
-        #expect(success == true)
-        #expect(data.count > 0)
-
-        // Verify RIFF/WEBP signature
-        let bytes = [UInt8](data)
-        #expect(bytes.count >= 12)
-        #expect(bytes[0] == 0x52) // R
-        #expect(bytes[1] == 0x49) // I
-        #expect(bytes[2] == 0x46) // F
-        #expect(bytes[3] == 0x46) // F
-    }
-
-    @Test("WebP roundtrip preserves dimensions")
-    func webpRoundtripDimensions() {
-        let originalImage = createTestImage(width: 16, height: 16)
-
-        // Encode to WebP (lossless)
-        var data = Data()
-        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(destination, originalImage, ["lossless": true])
-        let success = CGImageDestinationFinalize(destination)
-
-        #expect(success == true)
-
-        // Decode WebP - these MUST succeed for the test to be valid
-        let source = CGImageSourceCreateWithData(data, nil)
-        #expect(source != nil, "WebP source creation must succeed")
-
-        guard let validSource = source else {
-            Issue.record("Failed to create CGImageSource from WebP data")
-            return
-        }
-
-        let decodedImage = CGImageSourceCreateImageAtIndex(validSource, 0, nil)
-        #expect(decodedImage != nil, "WebP image decoding must succeed")
-
-        guard let decoded = decodedImage else {
-            Issue.record("Failed to decode WebP image")
-            return
-        }
-
-        #expect(decoded.width == 16, "Decoded width must match original")
-        #expect(decoded.height == 16, "Decoded height must match original")
-    }
-
-    @Test("WebP quality setting affects file size")
-    func webpQualityAffectsSize() {
-        let image = createTestImage(width: 32, height: 32)
-
-        // High quality (lossless)
-        var highQualityData = Data()
-        let highQualityDest = CGImageDestinationCreateWithData(&highQualityData, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(highQualityDest, image, ["lossless": true])
-        CGImageDestinationFinalize(highQualityDest)
-
-        // Low quality (lossy)
-        var lowQualityData = Data()
-        let lowQualityDest = CGImageDestinationCreateWithData(&lowQualityData, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(lowQualityDest, image, [kCGImageDestinationLossyCompressionQuality: 0.1])
-        CGImageDestinationFinalize(lowQualityDest)
-
-        // Both should produce valid data
-        #expect(highQualityData.count > 0)
-        #expect(lowQualityData.count > 0)
+        #expect(CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil) == nil)
     }
 }
 
@@ -1538,10 +1407,10 @@ struct CGImageDestinationGIFQuantizationTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Verify GIF signature
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes.count >= 6)
         #expect(bytes[0] == 0x47) // G
         #expect(bytes[1] == 0x49) // I
@@ -1590,7 +1459,7 @@ struct CGImageDestinationGIFQuantizationTests {
         #expect(success == true)
 
         // Decode GIF
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 2)
@@ -1611,10 +1480,10 @@ struct CGImageDestinationGIFQuantizationTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Decode and verify frame count
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         #expect(CGImageSourceGetCount(source) >= 1)
     }
 }
@@ -1696,7 +1565,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 4)
@@ -1718,9 +1587,9 @@ struct ComprehensiveFormatEncodingTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 256)
@@ -1739,7 +1608,7 @@ struct ComprehensiveFormatEncodingTests {
             let destination = CGImageDestinationCreateWithData(&data, "public.jpeg", 1, nil)!
             CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality])
             CGImageDestinationFinalize(destination)
-            sizes.append(data.count)
+            sizes.append(finalizedData(destination, fallback: data).count)
         }
 
         // Higher quality should generally produce larger files
@@ -1762,7 +1631,7 @@ struct ComprehensiveFormatEncodingTests {
 
             #expect(success == true, "JPEG encoding should succeed for \(w)x\(h)")
 
-            let source = CGImageSourceCreateWithData(data, nil)!
+            let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
             let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
             #expect(decoded.width == w, "Width should be \(w)")
@@ -1783,16 +1652,16 @@ struct ComprehensiveFormatEncodingTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
 
         // Verify GIF structure
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0x47) // G
         #expect(bytes[1] == 0x49) // I
         #expect(bytes[2] == 0x46) // F
 
         // Decode and verify
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 64)
@@ -1815,7 +1684,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let count = CGImageSourceGetCount(source)
         #expect(count >= 1)
     }
@@ -1834,11 +1703,11 @@ struct ComprehensiveFormatEncodingTests {
         #expect(success == true)
 
         // Verify BMP header
-        let bytes = [UInt8](data)
+        let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0x42) // B
         #expect(bytes[1] == 0x4D) // M
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         #expect(decoded.width == 4)
@@ -1855,7 +1724,7 @@ struct ComprehensiveFormatEncodingTests {
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(data.count > 0)
+        #expect(finalizedData(destination, fallback: data).count > 0)
     }
 
     // MARK: - TIFF Comprehensive Tests
@@ -1875,7 +1744,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
 
         // Verify each page
         let decoded1 = CGImageSourceCreateImageAtIndex(source, 0, nil)!
@@ -1894,7 +1763,7 @@ struct ComprehensiveFormatEncodingTests {
 
         #expect(success == true)
 
-        let source = CGImageSourceCreateWithData(data, nil)!
+        let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
 
         // Get original and decoded pixel data
@@ -1908,94 +1777,20 @@ struct ComprehensiveFormatEncodingTests {
         }
     }
 
-    // MARK: - WebP Comprehensive Tests
-
-    @Test("WebP lossless preserves pixel data")
-    func webpLosslessPixelData() {
-        let image = createColorTestImage()
-
-        var data = Data()
-        let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-        CGImageDestinationAddImage(destination, image, ["lossless": true])
-        let success = CGImageDestinationFinalize(destination)
-
-        #expect(success == true)
-
-        // Verify RIFF header
-        let bytes = [UInt8](data)
-        #expect(bytes.count >= 12)
-        #expect(bytes[0] == 0x52) // R
-        #expect(bytes[1] == 0x49) // I
-        #expect(bytes[2] == 0x46) // F
-        #expect(bytes[3] == 0x46) // F
-
-        // Decode and verify - must succeed
-        let source = CGImageSourceCreateWithData(data, nil)
-        #expect(source != nil, "WebP source creation must succeed")
-
-        guard let validSource = source else {
-            Issue.record("Failed to create CGImageSource from WebP data")
-            return
-        }
-
-        let decoded = CGImageSourceCreateImageAtIndex(validSource, 0, nil)
-        #expect(decoded != nil, "WebP image decoding must succeed")
-
-        guard let validDecoded = decoded else {
-            Issue.record("Failed to decode WebP image")
-            return
-        }
-
-        #expect(validDecoded.width == 4, "Decoded width must be 4")
-        #expect(validDecoded.height == 4, "Decoded height must be 4")
-    }
-
-    @Test("WebP lossy at various quality levels")
-    func webpLossyQualityLevels() {
-        let image = createGradientImage(width: 32, height: 32)
-
-        for quality in [0.1, 0.5, 0.9] {
-            var data = Data()
-            let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-            CGImageDestinationAddImage(destination, image, [
-                kCGImageDestinationLossyCompressionQuality: quality
-            ])
-            let success = CGImageDestinationFinalize(destination)
-
-            #expect(success == true, "WebP lossy encoding should succeed at quality \(quality)")
-            #expect(data.count > 0, "WebP data should not be empty at quality \(quality)")
-        }
-    }
-
-    @Test("WebP handles various dimensions")
-    func webpVariousDimensions() {
-        let dimensions = [(8, 8), (16, 16), (32, 32), (64, 64)]
-
-        for (w, h) in dimensions {
-            let image = createGradientImage(width: w, height: h)
-
-            var data = Data()
-            let destination = CGImageDestinationCreateWithData(&data, "org.webmproject.webp", 1, nil)!
-            CGImageDestinationAddImage(destination, image, ["lossless": true])
-            let success = CGImageDestinationFinalize(destination)
-
-            #expect(success == true, "WebP encoding should succeed for \(w)x\(h)")
-            #expect(data.count > 0, "WebP data should not be empty for \(w)x\(h)")
-        }
-    }
 }
 
 // MARK: - CGImageDestination Data + DataBox + CopyData
 
 /// Covers the `CGImageDestinationCreateWithData(_:_:_:_:)` + `DataBox` +
 /// `CGImageDestinationCopyData(_:)` surface. The public API takes an
-/// `inout Data` buffer and also mirrors the encoded blob into the box so
-/// that `CGImageDestinationCopyData` can hand it back by value.
+/// `inout Data` buffer for API compatibility, but Swift does not allow that
+/// storage to escape safely. Encoded bytes are therefore retained in the box
+/// and returned by `CGImageDestinationCopyData`.
 @Suite("CGImageDestination Data Box Roundtrip")
 struct CGImageDestinationDataBoxTests {
 
-    @Test("PNG roundtrip: inout Data receives a valid PNG blob")
-    func pngRoundtripInoutData() {
+    @Test("PNG roundtrip: CopyData receives a valid PNG blob")
+    func pngRoundtripCopyData() {
         var data = Data()
         let destination = CGImageDestinationCreateWithData(&data, "public.png", 1, nil)!
         let image = createTestImage(width: 4, height: 4)
@@ -2003,18 +1798,22 @@ struct CGImageDestinationDataBoxTests {
 
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
-        #expect(data.count >= 8, "PNG output must be at least 8 bytes (signature)")
+        #expect(data.isEmpty, "inout Data storage must not be mutated after CreateWithData returns")
+        guard let copied = CGImageDestinationCopyData(destination) else {
+            Issue.record("CopyData returned nil after Finalize")
+            return
+        }
+        #expect(copied.count >= 8, "PNG output must be at least 8 bytes (signature)")
 
         // PNG signature: 89 50 4E 47 0D 0A 1A 0A
         let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
-        let header = Array(data.prefix(8))
-        #expect(header == signature, "inout Data must start with the PNG signature")
+        let header = Array(copied.prefix(8))
+        #expect(header == signature, "CopyData must start with the PNG signature")
     }
 
-    /// `CGImageDestinationCopyData(_:)` returns only the encoded blob from
-    /// the `DataBox`, mirroring what was appended to the caller's `inout
-    /// Data`. Any pre-existing bytes the caller had in `data` before the
-    /// call are NOT part of the CopyData result (the box starts empty).
+    /// `CGImageDestinationCopyData(_:)` returns only the encoded blob from the
+    /// `DataBox`. Any pre-existing bytes the caller had in `data` before the
+    /// call are not part of the CopyData result.
     @Test("CopyData returns the encoded blob only")
     func copyDataMatchesEncoded() {
         var data = Data([0xDE, 0xAD])  // pre-existing caller bytes
@@ -2025,8 +1824,8 @@ struct CGImageDestinationDataBoxTests {
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
 
-        // Caller's inout data: seed bytes preserved, encoded appended after.
-        #expect(data.count > 2, "inout Data should have grown beyond the seed")
+        // Caller's inout data: seed bytes are preserved and not appended to.
+        #expect(data.count == 2, "inout Data must not be mutated after CreateWithData returns")
         #expect(data[0] == 0xDE, "Byte 0 of seed preserved in inout Data")
         #expect(data[1] == 0xAD, "Byte 1 of seed preserved in inout Data")
 
@@ -2038,7 +1837,7 @@ struct CGImageDestinationDataBoxTests {
         let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         let header = Array(copied.prefix(8))
         #expect(header == signature, "CopyData must start with the PNG signature (no seed)")
-        #expect(copied.count == data.count - 2, "CopyData size == inout data size minus seed")
+        #expect(copied.count > data.count, "CopyData contains the encoded PNG blob")
     }
 
     @Test("CopyData returns nil before Finalize")

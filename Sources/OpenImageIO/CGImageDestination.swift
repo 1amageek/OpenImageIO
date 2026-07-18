@@ -6,6 +6,14 @@
 @preconcurrency import Foundation
 import OpenCoreGraphics
 
+private let supportedDestinationTypeIdentifiers: Set<String> = [
+    "public.png",
+    "public.jpeg",
+    "com.compuserve.gif",
+    "com.microsoft.bmp",
+    "public.tiff",
+]
+
 /// An opaque type that you use to write image data to a URL, data object, or data consumer.
 public class CGImageDestination: Hashable, Equatable {
 
@@ -69,7 +77,7 @@ public func CGImageDestinationCreateWithURL(
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0 else { return nil }
+    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
     return CGImageDestination(
         output: .url(url),
         typeIdentifier: type,
@@ -81,19 +89,18 @@ public func CGImageDestinationCreateWithURL(
 /// Creates an image destination that writes to a mutable `Data` value.
 ///
 /// The `data` parameter is `inout` because `Data` is a Swift value type with
-/// copy-on-write semantics — `NSMutableData` (Apple's `ImageIO` signature) is
-/// not available on WASM. Swift does not allow safely escaping the `inout`
-/// storage until `CGImageDestinationFinalize`, so callers should retrieve the
-/// produced bytes with `CGImageDestinationCopyData(_:)` after finalization.
+/// copy-on-write semantics and `NSMutableData` is not available on WASM.
+/// Swift does not provide a safe way to retain and mutate that `inout` storage
+/// after this function returns, so callers retrieve the produced bytes with
+/// `CGImageDestinationCopyData(_:)` after finalization.
 public func CGImageDestinationCreateWithData(
     _ data: inout Data,
     _ type: String,
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0 else { return nil }
+    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
     let box = CGImageDestination.DataBox()
-    box.data = data
     return CGImageDestination(
         output: .data(box),
         typeIdentifier: type,
@@ -121,7 +128,7 @@ public func CGImageDestinationCreateWithDataConsumer(
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0 else { return nil }
+    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
     return CGImageDestination(
         output: .consumer(consumer),
         typeIdentifier: type,
@@ -189,8 +196,6 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
     guard !idst.isFinalized else { return false }
     guard !idst.images.isEmpty else { return false }
 
-    idst.isFinalized = true
-
     // Generate output based on type
     let outputData = encodeImages(idst)
     guard !outputData.isEmpty else { return false }
@@ -199,6 +204,7 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
     case .url(let url):
         do {
             try Data(outputData).write(to: url)
+            idst.isFinalized = true
             return true
         } catch {
             return false
@@ -206,12 +212,17 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
     case .data(let box):
         let produced = Data(outputData)
         box.data = produced
+        idst.isFinalized = true
         return true
     case .consumer(let consumer):
         let written = outputData.withUnsafeBytes { buffer in
             consumer.putBytes(buffer.baseAddress, count: buffer.count)
         }
-        return written == outputData.count
+        let success = written == outputData.count
+        if success {
+            idst.isFinalized = true
+        }
+        return success
     }
 }
 
@@ -219,14 +230,7 @@ public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
 
 /// Returns an array of the uniform type identifiers that are supported for image destinations.
 public func CGImageDestinationCopyTypeIdentifiers() -> [String] {
-    return [
-        "public.png",
-        "public.jpeg",
-        "com.compuserve.gif",
-        "com.microsoft.bmp",
-        "public.tiff",
-        "org.webmproject.webp"
-    ]
+    supportedDestinationTypeIdentifiers.sorted()
 }
 
 // MARK: - Image Encoding
@@ -243,8 +247,6 @@ private func encodeImages(_ idst: CGImageDestination) -> [UInt8] {
         return encodeBMP(idst)
     case "public.tiff":
         return encodeTIFF(idst)
-    case "org.webmproject.webp":
-        return encodeWebP(idst)
     default:
         return []
     }
@@ -454,43 +456,6 @@ private func encodeTIFF(_ idst: CGImageDestination) -> [UInt8] {
 
     // Use TIFFEncoder with multi-page support
     if let encoded = TIFFEncoder.encode(images: images, options: idst.globalProperties) {
-        return Array(encoded)
-    }
-
-    return []
-}
-
-private func encodeWebP(_ idst: CGImageDestination) -> [UInt8] {
-    guard let entry = idst.images.first else { return [] }
-
-    let image: CGImage?
-    if let img = entry.image {
-        image = img
-    } else if let source = entry.imageSource {
-        image = CGImageSourceCreateImageAtIndex(source, entry.sourceIndex, nil)
-    } else {
-        return []
-    }
-
-    guard let img = image else { return [] }
-
-    // Merge properties
-    var options = idst.globalProperties ?? [:]
-    if let entryProps = entry.properties {
-        options.merge(entryProps) { _, new in new }
-    }
-
-    // Check for quality setting to determine lossy/lossless
-    if let quality = options[kCGImageDestinationLossyCompressionQuality] as? Double {
-        options["lossless"] = false
-        options["quality"] = quality
-    } else if options["lossless"] == nil {
-        // Default to lossless for best quality
-        options["lossless"] = true
-    }
-
-    // Use WebPEncoder
-    if let encoded = WebPEncoder.encode(image: img, options: options) {
         return Array(encoded)
     }
 
