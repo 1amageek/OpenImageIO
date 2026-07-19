@@ -21,12 +21,16 @@ internal struct GIFEncoder {
     // MARK: - Public API
 
     /// Encode CGImage to GIF data
-    static func encode(image: CGImage, options: [String: Any]? = nil) -> Data? {
-        return encode(images: [image], options: options)
+    static func encode(image: CGImage) -> Data? {
+        return encode(images: [image], frameDelays: [0.1], loopCount: 0)
     }
 
     /// Encode multiple CGImages to animated GIF data
-    static func encode(images: [CGImage], options: [String: Any]? = nil) -> Data? {
+    static func encode(
+        images: [CGImage],
+        frameDelays: [Double],
+        loopCount: Int
+    ) -> Data? {
         guard let firstImage = images.first else { return nil }
 
         let width = firstImage.width
@@ -35,11 +39,17 @@ internal struct GIFEncoder {
         guard width > 0 && height > 0 && width <= 65535 && height <= 65535 else {
             return nil
         }
+        guard frameDelays.count == images.count,
+              frameDelays.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= Double(UInt16.max) / 100 }),
+              loopCount >= 0 && loopCount <= Int(UInt16.max),
+              images.allSatisfy({ $0.width == width && $0.height == height }) else {
+            return nil
+        }
 
         // Build color palette from all images
         var allPixels: [[UInt8]] = []
         for image in images {
-            guard let imageData = image.dataProvider?.data else { continue }
+            guard let imageData = image.dataProvider?.data else { return nil }
 
             // Determine source pixel format
             let srcBytesPerPixel = image.bitsPerPixel / 8
@@ -113,21 +123,14 @@ internal struct GIFEncoder {
             output.append(contentsOf: Array("NETSCAPE2.0".utf8))
             output.append(0x03) // Sub-block size
             output.append(0x01) // Sub-block ID
-            output.append(contentsOf: withUnsafeBytes(of: UInt16(0).littleEndian) { Array($0) }) // Loop count (0 = infinite)
+            output.append(contentsOf: withUnsafeBytes(of: UInt16(loopCount).littleEndian) { Array($0) })
             output.append(0x00) // Block terminator
         }
 
-        // Get delay from options
-        let delayTime: UInt16
-        if let delay = options?["delay"] as? Double {
-            delayTime = UInt16(delay * 100) // Convert seconds to centiseconds
-        } else {
-            delayTime = 10 // Default 0.1 seconds
-        }
-
         // Encode each frame
-        for (_, image) in images.enumerated() {
-            guard let imageData = image.dataProvider?.data else { continue }
+        for (index, image) in images.enumerated() {
+            guard let imageData = image.dataProvider?.data else { return nil }
+            let delayTime = UInt16((frameDelays[index] * 100).rounded())
 
             // Graphic Control Extension
             if images.count > 1 || hasTransparency(image) {
@@ -163,13 +166,11 @@ internal struct GIFEncoder {
             output.append(minCodeSize)
 
             // Compress with LZW
-            if let compressed = LZW.encode(data: Data(indexedPixels), minCodeSize: Int(minCodeSize)) {
-                // Write as sub-blocks
-                writeSubBlocks(data: compressed, to: &output)
-            } else {
-                // Fallback: write uncompressed as sub-blocks
-                writeSubBlocks(data: Data(indexedPixels), to: &output)
-            }
+            guard let compressed = LZW.encode(
+                data: Data(indexedPixels),
+                minCodeSize: Int(minCodeSize)
+            ) else { return nil }
+            writeSubBlocks(data: compressed, to: &output)
 
             output.append(0x00) // Block terminator
         }

@@ -1,7 +1,7 @@
 // CGImageMetadataTag.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 @preconcurrency import Foundation
 import OpenCoreGraphics
@@ -16,15 +16,27 @@ public class CGImageMetadataTag: Hashable, Equatable {
     internal let name: String
     internal let type: CGImageMetadataType
     internal let value: Any
+    internal let qualifiers: [CGImageMetadataTag]
+    internal let children: [CGImageMetadataTag]
 
     // MARK: - Initialization
 
-    internal init(namespace: String, prefix: String?, name: String, type: CGImageMetadataType, value: Any) {
+    internal init(
+        namespace: String,
+        prefix: String?,
+        name: String,
+        type: CGImageMetadataType,
+        value: Any,
+        qualifiers: [CGImageMetadataTag] = [],
+        children: [CGImageMetadataTag] = []
+    ) {
         self.namespace = namespace
         self.prefix = prefix
         self.name = name
         self.type = type
         self.value = value
+        self.qualifiers = qualifiers
+        self.children = children
     }
 
     // MARK: - Hashable & Equatable
@@ -84,9 +96,8 @@ public func CGImageMetadataTagCopyValue(_ tag: CGImageMetadataTag) -> Any? {
 
 /// Returns a shallow copy of the metadata tags that act as qualifiers for the current tag.
 public func CGImageMetadataTagCopyQualifiers(_ tag: CGImageMetadataTag) -> [CGImageMetadataTag]? {
-    // Qualifiers are nested tags that provide additional information
-    // For now, return nil as basic implementation
-    return nil
+    guard !tag.qualifiers.isEmpty else { return nil }
+    return tag.qualifiers
 }
 
 // MARK: - CGImageMetadataTag Type Functions

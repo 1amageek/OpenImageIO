@@ -1,7 +1,7 @@
 // CGImageSourceStatus.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 /// The set of status values for images and image sources.
 public enum CGImageSourceStatus: Int32, Sendable, Hashable, Equatable, RawRepresentable {

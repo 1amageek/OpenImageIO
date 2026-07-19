@@ -8,6 +8,8 @@ import Foundation
 /// TIFF image decoder supporting basic uncompressed and LZW-compressed TIFF
 internal struct TIFFDecoder {
 
+    private static let maximumDecodedByteCount = 512 * 1024 * 1024
+
     // MARK: - TIFF Constants
 
     // Byte order markers
@@ -42,8 +44,6 @@ internal struct TIFFDecoder {
     private static let PHOTOMETRIC_WHITE_IS_ZERO: UInt16 = 0
     private static let PHOTOMETRIC_BLACK_IS_ZERO: UInt16 = 1
     private static let PHOTOMETRIC_RGB: UInt16 = 2
-    private static let PHOTOMETRIC_PALETTE: UInt16 = 3
-
     // MARK: - Decode Result
 
     struct DecodeResult {
@@ -143,14 +143,26 @@ internal struct TIFFDecoder {
             var offset = endianness.firstIFDOffset
             var visited: Set<Int> = []
 
-            while offset > 0 && offset + 2 < data.count {
-                if visited.contains(offset) { break } // cycle guard
+            while offset != 0 {
+                guard offset > 0,
+                      offset <= data.count - 2,
+                      !visited.contains(offset) else {
+                    return 0
+                }
                 visited.insert(offset)
                 let numEntries = Int(readUInt16(ptr, offset: offset, littleEndian: endianness.isLittleEndian))
-                let nextOffsetPos = offset + 2 + numEntries * 12
-                guard nextOffsetPos + 4 <= data.count else { break }
+                let entriesByteCount = numEntries * 12
+                guard entriesByteCount <= data.count - offset - 2 else { return 0 }
+                let nextOffsetPos = offset + 2 + entriesByteCount
+                guard nextOffsetPos <= data.count - 4 else { return 0 }
                 count += 1
-                offset = Int(readUInt32(ptr, offset: nextOffsetPos, littleEndian: endianness.isLittleEndian))
+                let nextOffset = readUInt32(
+                    ptr,
+                    offset: nextOffsetPos,
+                    littleEndian: endianness.isLittleEndian
+                )
+                guard let convertedOffset = exactInt(nextOffset) else { return 0 }
+                offset = convertedOffset
             }
             return count
         }
@@ -179,8 +191,12 @@ internal struct TIFFDecoder {
         let magic = readUInt16(ptr, offset: 2, littleEndian: isLittleEndian)
         guard magic == TIFF_MAGIC else { return nil }
 
-        let firstIFDOffset = Int(readUInt32(ptr, offset: 4, littleEndian: isLittleEndian))
-        guard firstIFDOffset > 0 && firstIFDOffset + 2 < dataCount else { return nil }
+        let rawFirstIFDOffset = readUInt32(ptr, offset: 4, littleEndian: isLittleEndian)
+        guard let firstIFDOffset = exactInt(rawFirstIFDOffset),
+              firstIFDOffset > 0,
+              firstIFDOffset <= dataCount - 2 else {
+            return nil
+        }
 
         return TIFFHeader(isLittleEndian: isLittleEndian, firstIFDOffset: firstIFDOffset)
     }
@@ -197,15 +213,19 @@ internal struct TIFFDecoder {
         var offset = firstIFDOffset
         var visited: Set<Int> = []
         for index in 0...targetIndex {
-            guard offset > 0 && offset + 2 < dataCount else { return nil }
+            guard offset > 0 && offset <= dataCount - 2 else { return nil }
             if visited.contains(offset) { return nil }
             visited.insert(offset)
             if index == targetIndex { return offset }
 
             let numEntries = Int(readUInt16(ptr, offset: offset, littleEndian: littleEndian))
-            let nextOffsetPos = offset + 2 + numEntries * 12
-            guard nextOffsetPos + 4 <= dataCount else { return nil }
-            offset = Int(readUInt32(ptr, offset: nextOffsetPos, littleEndian: littleEndian))
+            let entriesByteCount = numEntries * 12
+            guard entriesByteCount <= dataCount - offset - 2 else { return nil }
+            let nextOffsetPos = offset + 2 + entriesByteCount
+            guard nextOffsetPos <= dataCount - 4 else { return nil }
+            let rawNextOffset = readUInt32(ptr, offset: nextOffsetPos, littleEndian: littleEndian)
+            guard let nextOffset = exactInt(rawNextOffset) else { return nil }
+            offset = nextOffset
         }
         return nil
     }
@@ -213,7 +233,7 @@ internal struct TIFFDecoder {
     // MARK: - IFD Parsing
 
     private static func parseIFD(ptr: UnsafePointer<UInt8>, dataCount: Int, offset: Int, littleEndian: Bool) -> ImageInfo? {
-        guard offset + 2 <= dataCount else { return nil }
+        guard offset >= 0, offset <= dataCount - 2 else { return nil }
 
         let numEntries = Int(readUInt16(ptr, offset: offset, littleEndian: littleEndian))
         var info = ImageInfo()
@@ -221,7 +241,7 @@ internal struct TIFFDecoder {
         var entryOffset = offset + 2
 
         for _ in 0..<numEntries {
-            guard entryOffset + 12 <= dataCount else { break }
+            guard entryOffset <= dataCount - 12 else { return nil }
 
             let tag = readUInt16(ptr, offset: entryOffset, littleEndian: littleEndian)
             let type = readUInt16(ptr, offset: entryOffset + 2, littleEndian: littleEndian)
@@ -232,38 +252,109 @@ internal struct TIFFDecoder {
 
             switch tag {
             case TAG_IMAGE_WIDTH:
-                info.width = Int(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = exactInt(rawValue) else { return nil }
+                info.width = value
 
             case TAG_IMAGE_LENGTH:
-                info.height = Int(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = exactInt(rawValue) else { return nil }
+                info.height = value
 
             case TAG_BITS_PER_SAMPLE:
-                info.bitsPerSample = getEntryValues(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian).map { Int($0) }
+                guard let rawValues = getEntryValues(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ) else { return nil }
+                var values: [Int] = []
+                values.reserveCapacity(rawValues.count)
+                for rawValue in rawValues {
+                    guard let value = exactInt(rawValue) else { return nil }
+                    values.append(value)
+                }
+                info.bitsPerSample = values
 
             case TAG_COMPRESSION:
-                info.compression = UInt16(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = UInt16(exactly: rawValue) else { return nil }
+                info.compression = value
 
             case TAG_PHOTOMETRIC:
-                info.photometric = UInt16(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = UInt16(exactly: rawValue) else { return nil }
+                info.photometric = value
 
             case TAG_STRIP_OFFSETS:
-                info.stripOffsets = getEntryValues(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian)
+                guard let values = getEntryValues(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ) else { return nil }
+                info.stripOffsets = values
 
             case TAG_SAMPLES_PER_PIXEL:
-                info.samplesPerPixel = Int(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = exactInt(rawValue) else { return nil }
+                info.samplesPerPixel = value
 
             case TAG_ROWS_PER_STRIP:
-                info.rowsPerStrip = Int(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = exactInt(rawValue) else { return nil }
+                info.rowsPerStrip = value
 
             case TAG_STRIP_BYTE_COUNTS:
-                info.stripByteCounts = getEntryValues(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian)
+                guard let values = getEntryValues(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ) else { return nil }
+                info.stripByteCounts = values
 
             case TAG_EXTRA_SAMPLES:
-                // If there are extra samples, assume alpha
-                info.hasAlpha = count > 0
+                guard let values = getEntryValues(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ) else { return nil }
+                info.hasAlpha = !values.isEmpty
 
             case TAG_PREDICTOR:
-                info.predictor = UInt16(getEntryValue(ptr: ptr, dataCount: dataCount, entry: entry, littleEndian: littleEndian))
+                guard let rawValue = getEntryValue(
+                    ptr: ptr,
+                    dataCount: dataCount,
+                    entry: entry,
+                    littleEndian: littleEndian
+                ), let value = UInt16(exactly: rawValue) else { return nil }
+                info.predictor = value
 
             default:
                 break
@@ -277,6 +368,27 @@ internal struct TIFFDecoder {
             info.rowsPerStrip = info.height
         }
 
+        guard info.width > 0,
+              info.height > 0,
+              info.samplesPerPixel > 0,
+              info.rowsPerStrip > 0,
+              !info.stripOffsets.isEmpty,
+              info.stripByteCounts.count == info.stripOffsets.count,
+              info.bitsPerSample.count == 1 || info.bitsPerSample.count == info.samplesPerPixel,
+              info.bitsPerSample.allSatisfy({ $0 == 8 || $0 == 16 }),
+              info.bitsPerSample.allSatisfy({ $0 == info.bitsPerSample[0] }),
+              [COMPRESSION_NONE, COMPRESSION_LZW, COMPRESSION_PACKBITS].contains(info.compression),
+              [PHOTOMETRIC_WHITE_IS_ZERO, PHOTOMETRIC_BLACK_IS_ZERO, PHOTOMETRIC_RGB].contains(info.photometric),
+              [PREDICTOR_NONE, PREDICTOR_HORIZONTAL].contains(info.predictor) else {
+            return nil
+        }
+
+        if info.photometric == PHOTOMETRIC_RGB {
+            guard info.samplesPerPixel == 3 || info.samplesPerPixel == 4 else { return nil }
+        } else {
+            guard info.samplesPerPixel == 1 || info.samplesPerPixel == 2 else { return nil }
+        }
+
         // Determine if has alpha from samples per pixel
         if info.samplesPerPixel == 4 && info.photometric == PHOTOMETRIC_RGB {
             info.hasAlpha = true
@@ -287,34 +399,34 @@ internal struct TIFFDecoder {
         return info
     }
 
-    private static func getEntryValue(ptr: UnsafePointer<UInt8>, dataCount: Int, entry: IFDEntry, littleEndian: Bool) -> UInt32 {
-        let valueSize = typeSize(entry.type) * Int(entry.count)
-
-        if valueSize <= 4 {
-            // Value is stored in the offset field itself
-            return entry.valueOffset
-        } else {
-            // Value is stored at the offset location
-            let offset = Int(entry.valueOffset)
-            guard offset >= 0 && offset < dataCount else { return 0 }
-
-            switch entry.type {
-            case 1, 2: // BYTE, ASCII
-                return UInt32(ptr[offset])
-            case 3: // SHORT
-                return UInt32(readUInt16(ptr, offset: offset, littleEndian: littleEndian))
-            case 4: // LONG
-                return readUInt32(ptr, offset: offset, littleEndian: littleEndian)
-            default:
-                return 0
-            }
-        }
+    private static func getEntryValue(
+        ptr: UnsafePointer<UInt8>,
+        dataCount: Int,
+        entry: IFDEntry,
+        littleEndian: Bool
+    ) -> UInt32? {
+        getEntryValues(
+            ptr: ptr,
+            dataCount: dataCount,
+            entry: entry,
+            littleEndian: littleEndian
+        )?.first
     }
 
-    private static func getEntryValues(ptr: UnsafePointer<UInt8>, dataCount: Int, entry: IFDEntry, littleEndian: Bool) -> [UInt32] {
+    private static func getEntryValues(
+        ptr: UnsafePointer<UInt8>,
+        dataCount: Int,
+        entry: IFDEntry,
+        littleEndian: Bool
+    ) -> [UInt32]? {
         var values: [UInt32] = []
-        let count = Int(entry.count)
-        let valueSize = typeSize(entry.type) * count
+        guard let count = exactInt(entry.count),
+              count > 0,
+              let elementSize = typeSize(entry.type) else {
+            return nil
+        }
+        let (valueSize, valueSizeOverflow) = elementSize.multipliedReportingOverflow(by: count)
+        guard !valueSizeOverflow else { return nil }
 
         if valueSize <= 4 {
             // Values stored inline in the valueOffset field
@@ -363,36 +475,38 @@ internal struct TIFFDecoder {
         }
 
         // Values stored at external offset
-        let dataOffset = Int(entry.valueOffset)
+        guard let dataOffset = exactInt(entry.valueOffset),
+              dataOffset >= 0,
+              valueSize <= dataCount,
+              dataOffset <= dataCount - valueSize else {
+            return nil
+        }
+        values.reserveCapacity(count)
 
         for i in 0..<count {
-            let offset = dataOffset + i * typeSize(entry.type)
-            guard offset >= 0 && offset < dataCount else { break }
+            let offset = dataOffset + i * elementSize
 
             switch entry.type {
             case 1, 2: // BYTE, ASCII
                 values.append(UInt32(ptr[offset]))
             case 3: // SHORT
-                guard offset + 1 < dataCount else { break }
                 values.append(UInt32(readUInt16(ptr, offset: offset, littleEndian: littleEndian)))
             case 4: // LONG
-                guard offset + 3 < dataCount else { break }
                 values.append(readUInt32(ptr, offset: offset, littleEndian: littleEndian))
             default:
-                break
+                return nil
             }
         }
 
         return values
     }
 
-    private static func typeSize(_ type: UInt16) -> Int {
+    private static func typeSize(_ type: UInt16) -> Int? {
         switch type {
         case 1, 2: return 1  // BYTE, ASCII
         case 3: return 2     // SHORT
         case 4: return 4     // LONG
-        case 5: return 8     // RATIONAL
-        default: return 1
+        default: return nil
         }
     }
 
@@ -402,25 +516,45 @@ internal struct TIFFDecoder {
         guard info.width > 0 && info.height > 0 else { return nil }
         guard !info.stripOffsets.isEmpty else { return nil }
 
-        var pixels = [UInt8](repeating: 0, count: info.width * info.height * 4)
+        let (pixelCount, pixelCountOverflow) = info.width.multipliedReportingOverflow(by: info.height)
+        let (decodedByteCount, decodedByteCountOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+        guard !pixelCountOverflow,
+              !decodedByteCountOverflow,
+              decodedByteCount <= maximumDecodedByteCount else {
+            return nil
+        }
+        var pixels = [UInt8](repeating: 0, count: decodedByteCount)
 
         let bitsPerSample = info.bitsPerSample.first ?? 8
         let bytesPerSample = (bitsPerSample + 7) / 8
+        let (samplesPerRow, samplesPerRowOverflow) = info.width.multipliedReportingOverflow(
+            by: info.samplesPerPixel
+        )
+        let (bytesPerRow, bytesPerRowOverflow) = samplesPerRow.multipliedReportingOverflow(
+            by: bytesPerSample
+        )
+        guard !samplesPerRowOverflow, !bytesPerRowOverflow else { return nil }
 
         var rowsDecoded = 0
 
         for (stripIndex, stripOffset) in info.stripOffsets.enumerated() {
-            let offset = Int(stripOffset)
-            guard offset >= 0 && offset < dataCount else { continue }
-
-            let byteCount: Int
-            if stripIndex < info.stripByteCounts.count {
-                byteCount = Int(info.stripByteCounts[stripIndex])
-            } else {
-                byteCount = dataCount - offset
+            guard rowsDecoded < info.height,
+                  let offset = exactInt(stripOffset),
+                  let byteCount = exactInt(info.stripByteCounts[stripIndex]),
+                  byteCount > 0,
+                  offset >= 0,
+                  byteCount <= dataCount,
+                  offset <= dataCount - byteCount else {
+                return nil
             }
 
-            guard offset + byteCount <= dataCount else { continue }
+            let rowsInStrip = min(info.rowsPerStrip, info.height - rowsDecoded)
+            let (requiredStripByteCount, requiredStripByteCountOverflow) = bytesPerRow
+                .multipliedReportingOverflow(by: rowsInStrip)
+            guard !requiredStripByteCountOverflow,
+                  requiredStripByteCount <= maximumDecodedByteCount else {
+                return nil
+            }
 
             // Decompress strip if needed
             var stripData: [UInt8]
@@ -447,14 +581,14 @@ internal struct TIFFDecoder {
                 return nil
             }
 
+            guard stripData.count >= requiredStripByteCount else { return nil }
+
             // Apply predictor (TIFF tag 317) BEFORE sample conversion.
             // Predictor operates on each scanline independently, component-wise.
-            // Predictor=3 (floating-point) is intentionally not implemented.
             if info.predictor == PREDICTOR_HORIZONTAL {
-                let rowsInThisStrip = min(info.rowsPerStrip, info.height - rowsDecoded)
                 applyHorizontalPredictor(
                     stripData: &stripData,
-                    rows: rowsInThisStrip,
+                    rows: rowsInStrip,
                     width: info.width,
                     samplesPerPixel: info.samplesPerPixel,
                     bitsPerSample: bitsPerSample,
@@ -463,15 +597,9 @@ internal struct TIFFDecoder {
             }
 
             // Convert strip data to RGBA
-            let rowsInStrip = min(info.rowsPerStrip, info.height - rowsDecoded)
-            let bytesPerRow = info.width * info.samplesPerPixel * bytesPerSample
-
             for row in 0..<rowsInStrip {
                 let srcRowOffset = row * bytesPerRow
                 let dstY = rowsDecoded + row
-
-                guard srcRowOffset + bytesPerRow <= stripData.count else { break }
-                guard dstY < info.height else { break }
 
                 for x in 0..<info.width {
                     let dstIndex = (dstY * info.width + x) * 4
@@ -565,7 +693,7 @@ internal struct TIFFDecoder {
             rowsDecoded += rowsInStrip
         }
 
-        return pixels
+        return rowsDecoded == info.height ? pixels : nil
     }
 
     // MARK: - Horizontal Predictor (TIFF tag 317, value 2)
@@ -755,6 +883,11 @@ internal struct TIFFDecoder {
     }
 
     // MARK: - Helper Functions
+
+    private static func exactInt(_ value: UInt32) -> Int? {
+        guard UInt64(value) <= UInt64(Int.max) else { return nil }
+        return Int(value)
+    }
 
     private static func readUInt16(_ ptr: UnsafePointer<UInt8>, offset: Int, littleEndian: Bool) -> UInt16 {
         if littleEndian {

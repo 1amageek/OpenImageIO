@@ -9,12 +9,12 @@ of OpenImageIO.
 | Gate | Required evidence |
 |---|---|
 | Native behavior | Focused `xcodebuild test` completes within the configured process timeout |
-| WASM compilation | `bash tests/wasm-build.sh` succeeds with `swift-6.3.1-RELEASE_wasm` |
+| WASM compilation | `bash Tests/wasm-build.sh` succeeds with `swift-6.3.1-RELEASE_wasm` |
 | Browser execution | `Tests/e2e` loads and executes the WASM module in Chromium |
 | Decode conformance | Fixtures produced by external encoders decode to the expected dimensions and pixels |
 | Encode conformance | Apple ImageIO accepts produced files and reports the expected format and dimensions |
 | Round trip | Encode and decode preserve pixels within the format's loss model |
-| Metadata | EXIF/IPTC/GPS/XMP and format properties are exercised without corrupting pixel data |
+| Metadata | XMP parsing/serialization is behavior-tested and accepted by Apple ImageIO |
 | Failure behavior | Truncated, malformed, unsupported, and oversized inputs fail safely |
 
 ## Advertised Pixel Codecs
@@ -40,10 +40,10 @@ of OpenImageIO.
 
 | Layer | Result |
 |---|---|
-| Native package | 267 tests passed |
-| External compatibility | PNG/JPEG/GIF/BMP/TIFF accepted by Apple ImageIO |
+| Native package | 288 tests in 49 suites passed through the complete `xcodebuild test` gate |
+| External compatibility | Apple ImageIO and OpenImageIO decode each other's advertised PNG/JPEG/GIF/BMP/TIFF output |
 | WASM | Package build passed |
-| Browser | Swift smoke checks and Playwright execution passed |
+| Browser | Swift PNG pixel roundtrip and Chromium decode of PNG/JPEG/GIF/BMP passed |
 
 Passing this checklist validates the exercised paths only; it does not imply
 complete parity with every ImageIO API or every legal bitstream variant.

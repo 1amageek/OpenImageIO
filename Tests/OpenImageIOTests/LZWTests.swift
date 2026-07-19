@@ -32,6 +32,14 @@ struct LZWTests {
         #expect(decoded == original, "Round-trip must preserve bytes")
     }
 
+    @Test("Code-width transitions and dictionary reset round-trip")
+    func codeWidthTransitionsRoundTrip() throws {
+        let input = Data((0..<16_384).map { UInt8(truncatingIfNeeded: ($0 * 73) ^ ($0 >> 3)) })
+        let encoded = try #require(LZW.encode(data: input, minCodeSize: 8))
+        let decoded = try #require(LZW.decode(data: encoded, minCodeSize: 8))
+        #expect(decoded == input)
+    }
+
     /// A correctly-terminated short stream decodes fine. Regression guard for
     /// the `sawEndCode` check in `LZWDecoder.decode` — a valid short stream
     /// must not be rejected as truncated.

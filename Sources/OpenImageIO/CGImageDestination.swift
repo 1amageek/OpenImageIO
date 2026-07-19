@@ -1,7 +1,7 @@
 // CGImageDestination.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 @preconcurrency import Foundation
 import OpenCoreGraphics
@@ -13,6 +13,17 @@ private let supportedDestinationTypeIdentifiers: Set<String> = [
     "com.microsoft.bmp",
     "public.tiff",
 ]
+
+private func supportsImageCount(_ count: Int, for type: String) -> Bool {
+    switch type {
+    case "com.compuserve.gif", "public.tiff":
+        return count > 0
+    case "public.png", "public.jpeg", "com.microsoft.bmp":
+        return count == 1
+    default:
+        return false
+    }
+}
 
 /// An opaque type that you use to write image data to a URL, data object, or data consumer.
 public class CGImageDestination: Hashable, Equatable {
@@ -77,7 +88,7 @@ public func CGImageDestinationCreateWithURL(
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
+    guard supportsImageCount(count, for: type) else { return nil }
     return CGImageDestination(
         output: .url(url),
         typeIdentifier: type,
@@ -99,7 +110,7 @@ public func CGImageDestinationCreateWithData(
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
+    guard supportsImageCount(count, for: type) else { return nil }
     let box = CGImageDestination.DataBox()
     return CGImageDestination(
         output: .data(box),
@@ -128,7 +139,7 @@ public func CGImageDestinationCreateWithDataConsumer(
     _ count: Int,
     _ options: [String: Any]?
 ) -> CGImageDestination? {
-    guard count > 0, supportedDestinationTypeIdentifiers.contains(type) else { return nil }
+    guard supportsImageCount(count, for: type) else { return nil }
     return CGImageDestination(
         output: .consumer(consumer),
         typeIdentifier: type,
@@ -194,7 +205,8 @@ public func CGImageDestinationAddAuxiliaryDataInfo(
 /// Writes image data and properties to the data, URL, or data consumer associated with the image destination.
 public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool {
     guard !idst.isFinalized else { return false }
-    guard !idst.images.isEmpty else { return false }
+    guard idst.images.count == idst.maxImageCount else { return false }
+    guard validateConfiguration(idst) else { return false }
 
     // Generate output based on type
     let outputData = encodeImages(idst)
@@ -267,89 +279,17 @@ private func encodePNG(_ idst: CGImageDestination) -> [UInt8] {
     guard let img = image else { return [] }
 
     // Use new PNGEncoder with DEFLATE compression
-    if let encoded = PNGEncoder.encode(image: img, options: entry.properties) {
+    if let encoded = PNGEncoder.encode(image: img) {
         return Array(encoded)
     }
 
     return []
 }
 
-private func createPNGChunk(type: [UInt8], data: [UInt8]) -> [UInt8] {
-    var chunk: [UInt8] = []
-
-    // Length
-    chunk.append(contentsOf: withUnsafeBytes(of: UInt32(data.count).bigEndian) { Array($0) })
-
-    // Type
-    chunk.append(contentsOf: type)
-
-    // Data
-    chunk.append(contentsOf: data)
-
-    // CRC
-    var crcData = type
-    crcData.append(contentsOf: data)
-    let crc = crc32(crcData)
-    chunk.append(contentsOf: withUnsafeBytes(of: crc.bigEndian) { Array($0) })
-
-    return chunk
-}
-
-// MARK: - CRC32 Lookup Table (Pre-computed for performance)
-
-private let crc32Table: [UInt32] = {
-    var table = [UInt32](repeating: 0, count: 256)
-    for i in 0..<256 {
-        var crc = UInt32(i)
-        for _ in 0..<8 {
-            crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1
-        }
-        table[i] = crc
-    }
-    return table
-}()
-
-/// Optimized CRC32 using pre-computed lookup table.
-private func crc32(_ data: [UInt8]) -> UInt32 {
-    var crc: UInt32 = 0xFFFFFFFF
-    for byte in data {
-        let index = Int((crc ^ UInt32(byte)) & 0xFF)
-        crc = crc32Table[index] ^ (crc >> 8)
-    }
-    return ~crc
-}
-
-/// Optimized Adler32 with batch processing.
-private func adler32(_ data: [UInt8]) -> UInt32 {
-    let BASE: UInt32 = 65521
-    let NMAX = 5552
-
-    var a: UInt32 = 1
-    var b: UInt32 = 0
-    var index = 0
-    let count = data.count
-
-    while index < count {
-        let chunkSize = min(NMAX, count - index)
-        let end = index + chunkSize
-
-        while index < end {
-            a &+= UInt32(data[index])
-            b &+= a
-            index += 1
-        }
-
-        a %= BASE
-        b %= BASE
-    }
-
-    return (b << 16) | a
-}
-
-private func encodeJPEG(_ idst: CGImageDestination, properties: [String: Any]? = nil, globalProperties: [String: Any]? = nil) -> [UInt8] {
+private func encodeJPEG(_ idst: CGImageDestination) -> [UInt8] {
     // Merge properties (image properties override global properties)
-    var mergedOptions: [String: Any] = globalProperties ?? [:]
-    if let props = properties {
+    var mergedOptions: [String: Any] = idst.globalProperties ?? [:]
+    if let props = idst.images.first?.properties {
         for (key, value) in props {
             mergedOptions[key] = value
         }
@@ -387,18 +327,25 @@ private func encodeGIF(_ idst: CGImageDestination) -> [UInt8] {
         } else if let source = entry.imageSource {
             frameImage = CGImageSourceCreateImageAtIndex(source, entry.sourceIndex, nil)
         } else {
-            continue
+            return []
         }
-
-        if let frame = frameImage {
-            images.append(frame)
-        }
+        guard let frame = frameImage else { return [] }
+        images.append(frame)
     }
 
-    guard !images.isEmpty else { return [] }
+    guard images.count == idst.images.count else { return [] }
+
+    let globalGIFProperties = idst.globalProperties?[kCGImagePropertyGIFDictionary] as? [String: Any]
+    let loopCount = globalGIFProperties?[kCGImagePropertyGIFLoopCount] as? Int ?? 0
+    let frameDelays = idst.images.map { entry -> Double in
+        let properties = entry.properties?[kCGImagePropertyGIFDictionary] as? [String: Any]
+        let delayValue = properties?[kCGImagePropertyGIFUnclampedDelayTime] ??
+            properties?[kCGImagePropertyGIFDelayTime]
+        return numericDouble(delayValue) ?? 0.1
+    }
 
     // Use new GIFEncoder with LZW compression
-    if let encoded = GIFEncoder.encode(images: images, options: idst.globalProperties) {
+    if let encoded = GIFEncoder.encode(images: images, frameDelays: frameDelays, loopCount: loopCount) {
         return Array(encoded)
     }
 
@@ -419,14 +366,8 @@ private func encodeBMP(_ idst: CGImageDestination) -> [UInt8] {
 
     guard let img = image else { return [] }
 
-    // Merge properties
-    var options = idst.globalProperties ?? [:]
-    if let entryProps = entry.properties {
-        options.merge(entryProps) { _, new in new }
-    }
-
     // Use BMPEncoder
-    if let encoded = BMPEncoder.encode(image: img, options: options) {
+    if let encoded = BMPEncoder.encode(image: img) {
         return Array(encoded)
     }
 
@@ -444,22 +385,97 @@ private func encodeTIFF(_ idst: CGImageDestination) -> [UInt8] {
         } else if let source = entry.imageSource {
             frameImage = CGImageSourceCreateImageAtIndex(source, entry.sourceIndex, nil)
         } else {
-            continue
+            return []
         }
-
-        if let frame = frameImage {
-            images.append(frame)
-        }
+        guard let frame = frameImage else { return [] }
+        images.append(frame)
     }
 
-    guard !images.isEmpty else { return [] }
+    guard images.count == idst.images.count else { return [] }
 
     // Use TIFFEncoder with multi-page support
-    if let encoded = TIFFEncoder.encode(images: images, options: idst.globalProperties) {
+    if let encoded = TIFFEncoder.encode(images: images) {
         return Array(encoded)
     }
 
     return []
+}
+
+private func validateConfiguration(_ destination: CGImageDestination) -> Bool {
+    guard destination.options?.isEmpty != false else { return false }
+
+    // Auxiliary payload encoding is not implemented. The active call path is
+    // AddAuxiliaryDataInfo -> Finalize; finalization must not report success
+    // until the selected container actually embeds and can read back the data.
+    guard destination.auxiliaryData.isEmpty else { return false }
+
+    switch destination.typeIdentifier {
+    case "public.jpeg":
+        let supported = Set([kCGImageDestinationLossyCompressionQuality])
+        guard propertyKeys(destination.globalProperties).isSubset(of: supported) else { return false }
+        guard validateJPEGProperties(destination.globalProperties) else { return false }
+        return destination.images.allSatisfy { entry in
+            propertyKeys(entry.properties).isSubset(of: supported)
+                && validateJPEGProperties(entry.properties)
+        }
+    case "com.compuserve.gif":
+        guard propertyKeys(destination.globalProperties).isSubset(of: [kCGImagePropertyGIFDictionary]),
+              validateGIFProperties(destination.globalProperties, global: true) else { return false }
+        return destination.images.allSatisfy { validateGIFProperties($0.properties, global: false) }
+    case "public.png", "com.microsoft.bmp", "public.tiff":
+        guard destination.globalProperties?.isEmpty != false else { return false }
+        return destination.images.allSatisfy { $0.properties?.isEmpty != false }
+    default:
+        return false
+    }
+}
+
+private func validateJPEGProperties(_ properties: [String: Any]?) -> Bool {
+    guard let qualityValue = properties?[kCGImageDestinationLossyCompressionQuality] else { return true }
+    guard let quality = numericDouble(qualityValue) else { return false }
+    return quality.isFinite && quality >= 0 && quality <= 1
+}
+
+private func numericDouble(_ value: Any?) -> Double? {
+    switch value {
+    case nil: return nil
+    case is Bool: return nil
+    case let value as Double: return value
+    case let value as Float: return Double(value)
+    case let value as Int: return Double(value)
+    case let value as Int8: return Double(value)
+    case let value as Int16: return Double(value)
+    case let value as Int32: return Double(value)
+    case let value as Int64: return Double(value)
+    case let value as UInt: return Double(value)
+    case let value as UInt8: return Double(value)
+    case let value as UInt16: return Double(value)
+    case let value as UInt32: return Double(value)
+    case let value as UInt64: return Double(value)
+    default: return nil
+    }
+}
+
+private func propertyKeys(_ properties: [String: Any]?) -> Set<String> {
+    guard let properties else { return [] }
+    return Set(properties.keys)
+}
+
+private func validateGIFProperties(_ properties: [String: Any]?, global: Bool) -> Bool {
+    guard let properties else { return true }
+    guard Set(properties.keys).isSubset(of: [kCGImagePropertyGIFDictionary]) else { return false }
+    guard let gif = properties[kCGImagePropertyGIFDictionary] as? [String: Any] else { return false }
+    let supported: Set<String> = global
+        ? [kCGImagePropertyGIFLoopCount]
+        : [kCGImagePropertyGIFDelayTime, kCGImagePropertyGIFUnclampedDelayTime]
+    guard Set(gif.keys).isSubset(of: supported) else { return false }
+    if global, let loopCount = gif[kCGImagePropertyGIFLoopCount] as? Int {
+        return loopCount >= 0 && loopCount <= Int(UInt16.max)
+    }
+    guard let delayValue = gif[kCGImagePropertyGIFUnclampedDelayTime] ??
+        gif[kCGImagePropertyGIFDelayTime] else { return true }
+    guard let delay = numericDouble(delayValue) else { return false }
+    return delay.isFinite && delay >= 0 && delay <= Double(UInt16.max) / 100
 }
 
 // MARK: - CGImageDestination Options Keys

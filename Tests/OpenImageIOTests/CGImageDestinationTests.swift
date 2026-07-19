@@ -108,6 +108,14 @@ struct CGImageDestinationCreationTests {
         #expect(destination == nil)
     }
 
+    @Test("Single-image formats reject counts that would discard images")
+    func singleImageFormatsRejectMultipleImages() {
+        for type in ["public.png", "public.jpeg", "com.microsoft.bmp"] {
+            var data = Data()
+            #expect(CGImageDestinationCreateWithData(&data, type, 2, nil) == nil)
+        }
+    }
+
     @Test("Create destination with data consumer")
     func createWithDataConsumer() {
         var consumerData = Data()
@@ -290,8 +298,8 @@ struct CGImageDestinationPropertiesTests {
         #expect(success == true)
     }
 
-    @Test("Add auxiliary data info")
-    func addAuxiliaryDataInfo() {
+    @Test("Unsupported auxiliary data prevents false-success finalization")
+    func unsupportedAuxiliaryDataFailsFinalization() {
         var data = Data()
         let destination = CGImageDestinationCreateWithData(
             &data,
@@ -311,7 +319,8 @@ struct CGImageDestinationPropertiesTests {
         CGImageDestinationAddImage(destination, image, nil)
 
         let success = CGImageDestinationFinalize(destination)
-        #expect(success == true)
+        #expect(success == false)
+        #expect(CGImageDestinationCopyData(destination) == nil)
     }
 
     @Test("Set properties after finalize is ignored")
@@ -375,6 +384,21 @@ struct CGImageDestinationFinalizationTests {
         #expect(success == false)
     }
 
+    @Test("Finalize fails when fewer images were added than declared")
+    func finalizeWithMissingImages() {
+        var data = Data()
+        let destination = CGImageDestinationCreateWithData(
+            &data,
+            "com.compuserve.gif",
+            2,
+            nil
+        )!
+        CGImageDestinationAddImage(destination, createTestImage(width: 2, height: 2), nil)
+
+        #expect(CGImageDestinationFinalize(destination) == false)
+        #expect(CGImageDestinationCopyData(destination) == nil)
+    }
+
     @Test("Finalize twice fails on second call")
     func finalizeTwice() {
         var data = Data()
@@ -401,7 +425,7 @@ struct CGImageDestinationFinalizationTests {
         let destination = CGImageDestinationCreateWithData(
             &data,
             "public.png",
-            2,
+            1,
             nil
         )!
 
@@ -632,8 +656,32 @@ struct CGImageDestinationOptionsTests {
         #expect((CGImageDestinationCopyData(highQualityDest) ?? Data()).count > 0)
         #expect((CGImageDestinationCopyData(lowQualityDest) ?? Data()).count > 0)
 
-        // Note: Current JPEG encoder produces consistent output regardless of quality
-        // because it uses placeholder data. Full JPEG encoder would produce different sizes.
+        #expect(CGImageDestinationCopyData(highQualityDest) != CGImageDestinationCopyData(lowQualityDest))
+    }
+
+    @Test("Invalid and ignored encoder options fail explicitly")
+    func invalidEncoderOptionsFail() {
+        let image = createTestImage(width: 8, height: 8)
+
+        var jpegData = Data()
+        let jpeg = CGImageDestinationCreateWithData(&jpegData, "public.jpeg", 1, nil)!
+        CGImageDestinationAddImage(jpeg, image, [kCGImageDestinationLossyCompressionQuality: 1.5])
+        #expect(!CGImageDestinationFinalize(jpeg))
+
+        var pngData = Data()
+        let png = CGImageDestinationCreateWithData(&pngData, "public.png", 1, nil)!
+        CGImageDestinationAddImage(png, image, [kCGImageDestinationOrientation: 6])
+        #expect(!CGImageDestinationFinalize(png))
+
+        var configuredData = Data()
+        let configured = CGImageDestinationCreateWithData(
+            &configuredData,
+            "public.jpeg",
+            1,
+            [kCGImageDestinationLossyCompressionQuality: 0.5]
+        )!
+        CGImageDestinationAddImage(configured, image, nil)
+        #expect(!CGImageDestinationFinalize(configured))
     }
 }
 
@@ -1299,13 +1347,15 @@ struct CGImageDestinationMultiPageTIFFTests {
         let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)
         #expect(source != nil)
         #expect(CGImageSourceGetType(source!) == "public.tiff")
+        #expect(CGImageSourceGetCount(source!) == 3)
 
-        // Note: The decoder needs to support multi-page TIFF to verify page count
-        // For now, verify first page can be decoded
-        let decodedImage = CGImageSourceCreateImageAtIndex(source!, 0, nil)
-        #expect(decodedImage != nil)
-        #expect(decodedImage!.width == 10)
-        #expect(decodedImage!.height == 10)
+        for (index, expectedFill) in [UInt8(100), 150, 200].enumerated() {
+            let decodedImage = CGImageSourceCreateImageAtIndex(source!, index, nil)
+            #expect(decodedImage != nil)
+            #expect(decodedImage?.width == 10)
+            #expect(decodedImage?.height == 10)
+            #expect(decodedImage?.dataProvider?.data?.first == expectedFill)
+        }
     }
 
     @Test("Single page TIFF works correctly")
@@ -1474,9 +1524,14 @@ struct CGImageDestinationGIFQuantizationTests {
 
         var data = Data()
         let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 2, nil)!
-        CGImageDestinationSetProperties(destination, ["delay": 0.1])
-        CGImageDestinationAddImage(destination, frame1, nil)
-        CGImageDestinationAddImage(destination, frame2, nil)
+        CGImageDestinationSetProperties(destination, [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]
+        ])
+        let frameProperties: [String: Any] = [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 0.1]
+        ]
+        CGImageDestinationAddImage(destination, frame1, frameProperties)
+        CGImageDestinationAddImage(destination, frame2, frameProperties)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
@@ -1676,10 +1731,15 @@ struct ComprehensiveFormatEncodingTests {
 
         var data = Data()
         let destination = CGImageDestinationCreateWithData(&data, "com.compuserve.gif", 3, nil)!
-        CGImageDestinationSetProperties(destination, ["delay": 0.1])
-        CGImageDestinationAddImage(destination, frame1, nil)
-        CGImageDestinationAddImage(destination, frame2, nil)
-        CGImageDestinationAddImage(destination, frame3, nil)
+        CGImageDestinationSetProperties(destination, [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]
+        ])
+        let frameProperties: [String: Any] = [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFUnclampedDelayTime: 0.1]
+        ]
+        CGImageDestinationAddImage(destination, frame1, frameProperties)
+        CGImageDestinationAddImage(destination, frame2, frameProperties)
+        CGImageDestinationAddImage(destination, frame3, frameProperties)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
@@ -1693,7 +1753,20 @@ struct ComprehensiveFormatEncodingTests {
 
     @Test("BMP 24-bit encoding and decoding")
     func bmp24BitEncoding() {
-        let image = createColorTestImage()
+        let rgbaImage = createColorTestImage()
+        let image = CGImage(
+            width: rgbaImage.width,
+            height: rgbaImage.height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: rgbaImage.bytesPerRow,
+            space: rgbaImage.colorSpace!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: rgbaImage.dataProvider!,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )!
 
         var data = Data()
         let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
@@ -1706,6 +1779,9 @@ struct ComprehensiveFormatEncodingTests {
         let bytes = [UInt8](finalizedData(destination, fallback: data))
         #expect(bytes[0] == 0x42) // B
         #expect(bytes[1] == 0x4D) // M
+        #expect(bytes[14] == 40) // BITMAPINFOHEADER
+        #expect(bytes[28] == 24)
+        #expect(bytes[29] == 0)
 
         let source = CGImageSourceCreateWithData(finalizedData(destination, fallback: data), nil)!
         let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
@@ -1716,15 +1792,40 @@ struct ComprehensiveFormatEncodingTests {
 
     @Test("BMP 32-bit with alpha")
     func bmp32BitWithAlpha() {
-        let image = createColorTestImage()
+        let pixels: [UInt8] = [
+            128, 0, 0, 128,
+            0, 0, 255, 255,
+        ]
+        let image = CGImage(
+            width: 2,
+            height: 1,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: 8,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: CGDataProvider(data: Data(pixels)),
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )!
 
         var data = Data()
         let destination = CGImageDestinationCreateWithData(&data, "com.microsoft.bmp", 1, nil)!
-        CGImageDestinationAddImage(destination, image, ["preserveAlpha": true])
+        CGImageDestinationAddImage(destination, image, nil)
         let success = CGImageDestinationFinalize(destination)
 
         #expect(success == true)
-        #expect(finalizedData(destination, fallback: data).count > 0)
+        let encoded = finalizedData(destination, fallback: data)
+        let bytes = [UInt8](encoded)
+        #expect(bytes[14] == 124) // BITMAPV5HEADER
+        #expect(bytes[28] == 32)
+        #expect(bytes[30] == 3) // BI_BITFIELDS
+
+        let source = CGImageSourceCreateWithData(encoded, nil)!
+        let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+        let decodedPixels = decoded.dataProvider!.data!
+        #expect(decodedPixels == Data(pixels))
     }
 
     // MARK: - TIFF Comprehensive Tests

@@ -1,7 +1,7 @@
 // IPTCProperties.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 // Metadata keys for International Press Telecommunications Council (IPTC) data
 //
 // NOTE: IPTC parsing is not yet implemented. These keys are exported for

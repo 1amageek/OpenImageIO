@@ -1,7 +1,7 @@
 // FormatProperties.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 // Format-specific image properties
 
 @preconcurrency import Foundation
@@ -79,47 +79,17 @@ public let kCGImagePropertyPNGDictionary: String = "{PNG}"
 /// The gamma value.
 public let kCGImagePropertyPNGGamma: String = "Gamma"
 
-/// The ICC profile name.
-public let kCGImagePropertyPNGICCProfileName: String = "ICCProfileName"
+/// The interlace type.
+public let kCGImagePropertyPNGInterlaceType: String = "InterlaceType"
 
-/// The intended number of times the animation should be played.
-public let kCGImagePropertyPNGLoopCount: String = "LoopCount"
+/// The number of pixels per meter in the x dimension.
+public let kCGImagePropertyPNGXPixelsPerMeter: String = "XPixelsPerMeter"
 
-/// The delay time for the frame.
-public let kCGImagePropertyPNGDelayTime: String = "DelayTime"
+/// The number of pixels per meter in the y dimension.
+public let kCGImagePropertyPNGYPixelsPerMeter: String = "YPixelsPerMeter"
 
-/// The default image width.
-public let kCGImagePropertyPNGDefaultImageWidth: String = "DefaultImageWidth"
-
-/// The default image height.
-public let kCGImagePropertyPNGDefaultImageHeight: String = "DefaultImageHeight"
-
-/// The width of the canvas.
-public let kCGImagePropertyPNGCanvasWidth: String = "CanvasWidth"
-
-/// The height of the canvas.
-public let kCGImagePropertyPNGCanvasHeight: String = "CanvasHeight"
-
-/// The x offset of the frame.
-public let kCGImagePropertyPNGXOffset: String = "XOffset"
-
-/// The y offset of the frame.
-public let kCGImagePropertyPNGYOffset: String = "YOffset"
-
-/// The frame's blend operation.
-public let kCGImagePropertyPNGBlendOp: String = "BlendOp"
-
-/// The frame's dispose operation.
-public let kCGImagePropertyPNGDisposeOp: String = "DisposeOp"
-
-/// The number of pixels per unit in the x dimension.
-public let kCGImagePropertyPNGPixelsPerMeterX: String = "PixelsPerMeterX"
-
-/// The number of pixels per unit in the y dimension.
-public let kCGImagePropertyPNGPixelsPerMeterY: String = "PixelsPerMeterY"
-
-/// The intended pixel size or aspect ratio.
-public let kCGImagePropertyPNGPixelUnit: String = "PixelUnit"
+/// The pixel aspect ratio.
+public let kCGImagePropertyPNGPixelsAspectRatio: String = "PixelsAspectRatio"
 
 /// The rendering intent.
 public let kCGImagePropertyPNGsRGBIntent: String = "sRGBIntent"
@@ -139,14 +109,46 @@ public let kCGImagePropertyPNGCreationTime: String = "CreationTime"
 /// The image description.
 public let kCGImagePropertyPNGDescription: String = "Description"
 
+/// Image comments.
+public let kCGImagePropertyPNGComment: String = "Comment"
+
+/// A disclaimer associated with the image.
+public let kCGImagePropertyPNGDisclaimer: String = "Disclaimer"
+
 /// The modification time of the image.
 public let kCGImagePropertyPNGModificationTime: String = "ModificationTime"
 
 /// The software used to create the image.
 public let kCGImagePropertyPNGSoftware: String = "Software"
 
+/// The source of the image.
+public let kCGImagePropertyPNGSource: String = "Source"
+
+/// A warning associated with the image.
+public let kCGImagePropertyPNGWarning: String = "Warning"
+
 /// The image title.
 public let kCGImagePropertyPNGTitle: String = "Title"
+
+// MARK: - APNG Image Properties
+
+/// The number of times to play an animated PNG sequence.
+public let kCGImagePropertyAPNGLoopCount: String = "LoopCount"
+
+/// The clamped delay before displaying the next animated PNG frame.
+public let kCGImagePropertyAPNGDelayTime: String = "DelayTime"
+
+/// The unclamped delay before displaying the next animated PNG frame.
+public let kCGImagePropertyAPNGUnclampedDelayTime: String = "UnclampedDelayTime"
+
+/// Timing information for each animated PNG frame.
+public let kCGImagePropertyAPNGFrameInfoArray: String = "FrameInfoArray"
+
+/// The animated PNG canvas width in pixels.
+public let kCGImagePropertyAPNGCanvasPixelWidth: String = "CanvasPixelWidth"
+
+/// The animated PNG canvas height in pixels.
+public let kCGImagePropertyAPNGCanvasPixelHeight: String = "CanvasPixelHeight"
 
 // MARK: - GIF Image Properties
 
@@ -165,11 +167,14 @@ public let kCGImagePropertyGIFUnclampedDelayTime: String = "UnclampedDelayTime"
 /// Whether the frame has a global color map.
 public let kCGImagePropertyGIFHasGlobalColorMap: String = "HasGlobalColorMap"
 
-/// The width of the canvas.
-public let kCGImagePropertyGIFCanvasWidth: String = "CanvasWidth"
+/// The width of the main image, in pixels.
+public let kCGImagePropertyGIFCanvasPixelWidth: String = "CanvasPixelWidth"
 
-/// The height of the canvas.
-public let kCGImagePropertyGIFCanvasHeight: String = "CanvasHeight"
+/// The height of the main image, in pixels.
+public let kCGImagePropertyGIFCanvasPixelHeight: String = "CanvasPixelHeight"
+
+/// Timing information for each GIF frame.
+public let kCGImagePropertyGIFFrameInfoArray: String = "FrameInfoArray"
 
 /// The frame's info dictionary.
 public let kCGImagePropertyGIFImageColorMap: String = "ImageColorMap"
@@ -199,9 +204,6 @@ public let kCGImagePropertyJFIFIsProgressive: String = "IsProgressive"
 /// A dictionary of properties related to an HEIC container.
 public let kCGImagePropertyHEICSDictionary: String = "{HEICS}"
 
-/// A dictionary of key-value pairs for an image that uses HEIC metadata.
-public let kCGImagePropertyHEICDictionary: String = "{HEIC}"
-
 /// The height of the main image, in pixels.
 public let kCGImagePropertyHEICSCanvasPixelHeight: String = "CanvasPixelHeight"
 
@@ -222,12 +224,6 @@ public let kCGImagePropertyHEICSUnclampedDelayTime: String = "UnclampedDelayTime
 /// The number of times to play the sequence.
 public let kCGImagePropertyHEICSLoopCount: String = "LoopCount"
 
-/// The canvas width for HEIC images (legacy).
-public let kCGImagePropertyHEICSCanvasWidth: String = "CanvasWidth"
-
-/// The canvas height for HEIC images (legacy).
-public let kCGImagePropertyHEICSCanvasHeight: String = "CanvasHeight"
-
 // MARK: - WebP Image Properties
 
 /// A dictionary of key-value pairs for an image that uses WebP metadata.
@@ -242,14 +238,14 @@ public let kCGImagePropertyWebPDelayTime: String = "DelayTime"
 /// The unclamped delay time for WebP animation frames.
 public let kCGImagePropertyWebPUnclampedDelayTime: String = "UnclampedDelayTime"
 
-/// The canvas width for WebP images.
-public let kCGImagePropertyWebPCanvasWidth: String = "CanvasWidth"
+/// Timing information for each WebP frame.
+public let kCGImagePropertyWebPFrameInfoArray: String = "FrameInfoArray"
 
-/// The canvas height for WebP images.
-public let kCGImagePropertyWebPCanvasHeight: String = "CanvasHeight"
+/// The WebP canvas width in pixels.
+public let kCGImagePropertyWebPCanvasPixelWidth: String = "CanvasPixelWidth"
 
-/// The frame count for WebP animations.
-public let kCGImagePropertyWebPFrameCount: String = "FrameCount"
+/// The WebP canvas height in pixels.
+public let kCGImagePropertyWebPCanvasPixelHeight: String = "CanvasPixelHeight"
 
 // MARK: - Raw Image Properties
 
@@ -275,9 +271,6 @@ public let kCGImagePropertyCIFFFirmware: String = "Firmware"
 
 /// The owner name.
 public let kCGImagePropertyCIFFOwnerName: String = "OwnerName"
-
-/// The model name.
-public let kCGImagePropertyCIFFModelName: String = "ModelName"
 
 /// The release method.
 public let kCGImagePropertyCIFFReleaseMethod: String = "ReleaseMethod"

@@ -72,30 +72,7 @@ import OpenCoreGraphics
 }
 
 @Test func testCGImageSourceCreateWithPNGData() {
-    // Create a minimal valid PNG
-    let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
-    // IHDR chunk: width=1, height=1, bit depth=8, color type=6 (RGBA)
-    let ihdrLength: [UInt8] = [0x00, 0x00, 0x00, 0x0D]
-    let ihdrType: [UInt8] = [0x49, 0x48, 0x44, 0x52] // "IHDR"
-    let ihdrData: [UInt8] = [
-        0x00, 0x00, 0x00, 0x01, // width = 1
-        0x00, 0x00, 0x00, 0x01, // height = 1
-        0x08,                   // bit depth = 8
-        0x06,                   // color type = 6 (RGBA)
-        0x00,                   // compression = 0
-        0x00,                   // filter = 0
-        0x00                    // interlace = 0
-    ]
-    let ihdrCRC: [UInt8] = [0x1F, 0x15, 0xC4, 0x89] // CRC placeholder
-
-    var pngData: [UInt8] = []
-    pngData.append(contentsOf: pngSignature)
-    pngData.append(contentsOf: ihdrLength)
-    pngData.append(contentsOf: ihdrType)
-    pngData.append(contentsOf: ihdrData)
-    pngData.append(contentsOf: ihdrCRC)
-
-    let data = Data(pngData)
+    let data = TestData.minimalPNG
     let source = CGImageSourceCreateWithData(data, nil)
 
     #expect(source != nil)
@@ -111,26 +88,7 @@ import OpenCoreGraphics
 }
 
 @Test func testCGImageSourceCreateWithJPEGData() {
-    // Create minimal JPEG header
-    let jpegData: [UInt8] = [
-        0xFF, 0xD8, 0xFF, 0xE0, // SOI + APP0
-        0x00, 0x10,             // Length
-        0x4A, 0x46, 0x49, 0x46, 0x00, // "JFIF\0"
-        0x01, 0x01,             // Version
-        0x00,                   // Units
-        0x00, 0x01, 0x00, 0x01, // Density
-        0x00, 0x00,             // Thumbnail
-        0xFF, 0xC0,             // SOF0
-        0x00, 0x0B,             // Length
-        0x08,                   // Precision
-        0x00, 0x10,             // Height = 16
-        0x00, 0x20,             // Width = 32
-        0x01,                   // Components
-        0x01, 0x11, 0x00,       // Component info
-        0xFF, 0xD9              // EOI
-    ]
-
-    let data = Data(jpegData)
+    let data = TestData.minimalJPEG
     let source = CGImageSourceCreateWithData(data, nil)
 
     #expect(source != nil)
@@ -201,7 +159,6 @@ import OpenCoreGraphics
 
 @Test func testCGImageMetadataCreateMutable() {
     let metadata = CGImageMetadataCreateMutable()
-    #expect(metadata != nil)
 
     let tags = CGImageMetadataCopyTags(metadata)
     #expect(tags == nil) // Empty metadata should have no tags

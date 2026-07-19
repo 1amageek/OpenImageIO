@@ -17,8 +17,8 @@ internal struct BMPEncoder {
     /// BITMAPINFOHEADER size
     private static let DIB_HEADER_SIZE: UInt32 = 40
 
-    /// BITMAPV4HEADER size (for alpha support)
-    private static let DIB_V4_HEADER_SIZE: UInt32 = 108
+    /// BITMAPV5HEADER size (for alpha support)
+    private static let DIB_V5_HEADER_SIZE: UInt32 = 124
 
     // Compression types
     private static let BI_RGB: UInt32 = 0
@@ -29,21 +29,20 @@ internal struct BMPEncoder {
     /// Encode CGImage to BMP data
     /// - Parameters:
     ///   - image: The image to encode
-    ///   - options: Encoding options (optional)
-    ///     - "preserveAlpha": Bool - If true, encode as 32-bit BGRA (default: false for compatibility)
     /// - Returns: BMP data or nil if encoding fails
-    static func encode(image: CGImage, options: [String: Any]? = nil) -> Data? {
+    static func encode(image: CGImage) -> Data? {
         let width = image.width
         let height = image.height
 
-        guard width > 0 && height > 0 else { return nil }
+        guard width > 0,
+              height > 0,
+              width <= Int(Int32.max),
+              height <= Int(Int32.max) else { return nil }
 
         // Get pixel data
         guard let imageData = image.dataProvider?.data else { return nil }
 
-        // Check if we should preserve alpha
-        let preserveAlpha = (options?["preserveAlpha"] as? Bool) ?? false
-        let hasAlpha = preserveAlpha && imageHasAlpha(image)
+        let hasAlpha = imageHasAlpha(image)
 
         if hasAlpha {
             return encode32BitBGRA(image: image, imageData: imageData, width: width, height: height)
@@ -120,7 +119,7 @@ internal struct BMPEncoder {
         // 32-bit rows are always 4-byte aligned (no padding needed)
         let rowSize = width * 4
         let imageSize = rowSize * height
-        let headerSize = 14 + Int(DIB_V4_HEADER_SIZE) // File header + V4 header
+        let headerSize = 14 + Int(DIB_V5_HEADER_SIZE) // File header + V5 header
         let fileSize = headerSize + imageSize
 
         var output = Data()
@@ -132,10 +131,11 @@ internal struct BMPEncoder {
         output.append(contentsOf: [0x00, 0x00, 0x00, 0x00])                              // Reserved
         output.append(contentsOf: uint32ToLittleEndian(UInt32(headerSize)))              // Data offset
 
-        // DIB Header - BITMAPV4HEADER (108 bytes)
-        output.append(contentsOf: uint32ToLittleEndian(DIB_V4_HEADER_SIZE))              // Header size
+        // DIB Header - BITMAPV5HEADER (124 bytes). ImageIO itself emits V5 for
+        // alpha-bearing BMPs; V4 containers are rejected by some decoders.
+        output.append(contentsOf: uint32ToLittleEndian(DIB_V5_HEADER_SIZE))              // Header size
         output.append(contentsOf: int32ToLittleEndian(Int32(width)))                     // Width
-        output.append(contentsOf: int32ToLittleEndian(Int32(height)))                    // Height (positive = bottom-up)
+        output.append(contentsOf: int32ToLittleEndian(-Int32(height)))                   // Height (negative = top-down)
         output.append(contentsOf: uint16ToLittleEndian(1))                               // Color planes
         output.append(contentsOf: uint16ToLittleEndian(32))                              // Bits per pixel
         output.append(contentsOf: uint32ToLittleEndian(BI_BITFIELDS))                    // Compression (bitfields for alpha)
@@ -162,8 +162,15 @@ internal struct BMPEncoder {
         output.append(contentsOf: uint32ToLittleEndian(0))                               // Green gamma
         output.append(contentsOf: uint32ToLittleEndian(0))                               // Blue gamma
 
-        // Pixel Data (BGRA format, bottom-up row order)
-        for y in (0..<height).reversed() {
+        // BITMAPV5HEADER extension fields. A zero intent and no embedded
+        // profile match the platform encoder's sRGB output.
+        output.append(contentsOf: uint32ToLittleEndian(0))                               // Rendering intent
+        output.append(contentsOf: uint32ToLittleEndian(0))                               // Profile data offset
+        output.append(contentsOf: uint32ToLittleEndian(0))                               // Profile size
+        output.append(contentsOf: uint32ToLittleEndian(0))                               // Reserved
+
+        // Pixel Data (BGRA format, top-down row order)
+        for y in 0..<height {
             for x in 0..<width {
                 let srcIndex = y * image.bytesPerRow + x * 4
                 if srcIndex + 3 < imageData.count {

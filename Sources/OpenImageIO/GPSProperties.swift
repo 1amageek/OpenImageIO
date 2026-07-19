@@ -1,7 +1,7 @@
 // GPSProperties.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 // Keys for Global Positioning System (GPS) information
 //
 // NOTE: GPS parsing is not yet implemented. These keys are exported for
@@ -140,9 +140,6 @@ public let kCGImagePropertyGPSAreaInformation: String = "GPSAreaInformation"
 
 /// An indication of whether differential correction is applied to the GPS receiver.
 public let kCGImagePropertyGPSDifferental: String = "GPSDifferental"
-
-/// Whether differential correction was applied to GPS data (alternate spelling).
-public let kCGImagePropertyGPSDifferential: String = "GPSDifferential"
 
 // MARK: - Horizontal Positioning Error
 

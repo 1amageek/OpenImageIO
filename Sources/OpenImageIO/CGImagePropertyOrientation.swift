@@ -1,7 +1,7 @@
 // CGImagePropertyOrientation.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 /// A value describing the intended display orientation for an image.
 @frozen public enum CGImagePropertyOrientation: UInt32, Sendable, Hashable, Equatable, RawRepresentable {

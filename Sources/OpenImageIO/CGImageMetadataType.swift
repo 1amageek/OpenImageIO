@@ -1,7 +1,7 @@
 // CGImageMetadataType.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 /// Constants that indicate the XMP type for a metadata tag.
 public enum CGImageMetadataType: Int32, Sendable, Hashable, Equatable, RawRepresentable {

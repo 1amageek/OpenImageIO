@@ -16,7 +16,6 @@ struct CGImageMetadataCreationTests {
     func createMutable() {
         let metadata = CGImageMetadataCreateMutable()
 
-        #expect(metadata != nil)
         #expect(CGImageMetadataCopyTags(metadata) == nil) // Empty metadata
     }
 
@@ -43,6 +42,7 @@ struct CGImageMetadataCreationTests {
         let metadata = CGImageMetadataCreateFromXMPData(xmpData)
 
         #expect(metadata != nil)
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata!, nil, "dc:title") == "Test Image Title")
     }
 
     @Test("Create metadata from empty XMP returns nil")
@@ -315,6 +315,38 @@ struct CGMutableImageMetadataTests {
         )
 
         #expect(success == true)
+        #expect(CGImageMetadataSetValueWithPath(metadata, nil, "custom:rating", "5"))
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "custom:rating") == "5")
+    }
+
+    @Test("Namespace registration rejects conflicts and reports an error")
+    func registerNamespaceConflict() {
+        let metadata = CGImageMetadataCreateMutable()
+        var error: Error?
+
+        #expect(CGImageMetadataRegisterNamespaceForPrefix(
+            metadata,
+            "http://example.com/first/",
+            "custom",
+            &error
+        ))
+        #expect(!CGImageMetadataRegisterNamespaceForPrefix(
+            metadata,
+            "http://example.com/second/",
+            "custom",
+            &error
+        ))
+        #expect(error != nil)
+    }
+
+    @Test("Namespace registration rejects malformed values")
+    func registerMalformedNamespace() {
+        let metadata = CGImageMetadataCreateMutable()
+        var error: Error?
+
+        #expect(!CGImageMetadataRegisterNamespaceForPrefix(metadata, "not a namespace", "bad prefix", &error))
+        #expect(error != nil)
+        #expect(!CGImageMetadataSetValueWithPath(metadata, nil, "bad:tag", "value"))
     }
 }
 
@@ -414,15 +446,127 @@ struct CGImageMetadataXMPTests {
     @Test("XMP roundtrip")
     func xmpRoundtrip() {
         let original = CGImageMetadataCreateMutable()
-        CGImageMetadataSetValueWithPath(original, nil, "dc:title", "Roundtrip Test")
+        let originalValue = "Roundtrip & <Test> \"quoted\""
+        CGImageMetadataSetValueWithPath(original, nil, "dc:title", originalValue)
 
         let xmpData = CGImageMetadataCreateXMPData(original, nil)
         #expect(xmpData != nil)
+        let decoded = CGImageMetadataCreateFromXMPData(xmpData!)
+        #expect(decoded != nil)
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded!, nil, "dc:title") == originalValue)
+    }
 
-        // Parse XMP back would require more sophisticated parsing
-        // For now just verify the XMP was created
-        let xmpString = String(data: xmpData!, encoding: .utf8)
-        #expect(xmpString?.contains("Roundtrip Test") == true)
+    @Test("Malformed and non-XMP XML fail instead of producing empty metadata")
+    func invalidXMPFails() {
+        #expect(CGImageMetadataCreateFromXMPData(Data("plain text".utf8)) == nil)
+        #expect(CGImageMetadataCreateFromXMPData(Data("<root/>".utf8)) == nil)
+        #expect(CGImageMetadataCreateFromXMPData(Data("<rdf:RDF>".utf8)) == nil)
+        #expect(CGImageMetadataCreateFromXMPData(Data("<rdf:RDF>&unknown;</rdf:RDF>".utf8)) == nil)
+    }
+
+    @Test("Arrays, structures, selectors, and qualifiers parse from XMP")
+    func structuredXMPRoundtrip() throws {
+        let source = """
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            <rdf:Description rdf:about=""
+              xmlns:dc="http://purl.org/dc/elements/1.1/"
+              xmlns:exif="http://ns.adobe.com/exif/1.0/">
+              <dc:subject><rdf:Bag><rdf:li>swift</rdf:li><rdf:li>wasm</rdf:li></rdf:Bag></dc:subject>
+              <dc:description><rdf:Alt><rdf:li xml:lang="en-US">Browser image</rdf:li><rdf:li xml:lang="ja-JP">ブラウザ画像</rdf:li></rdf:Alt></dc:description>
+              <exif:Flash rdf:parseType="Resource"><exif:Fired>true</exif:Fired></exif:Flash>
+            </rdf:Description>
+          </rdf:RDF>
+        </x:xmpmeta>
+        """
+        let metadata = try #require(CGImageMetadataCreateFromXMPData(Data(source.utf8)))
+
+        let subject = try #require(CGImageMetadataCopyTagWithPath(metadata, nil, "dc:subject"))
+        #expect(CGImageMetadataTagGetType(subject) == .arrayUnordered)
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:subject[1]") == "wasm")
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:description[ja-JP]") == "ブラウザ画像")
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:description[en-US]?xml:lang") == "en-US")
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "exif:Flash.Fired") == "true")
+
+        let japanese = try #require(CGImageMetadataCopyTagWithPath(metadata, nil, "dc:description[ja-JP]"))
+        let qualifiers = try #require(CGImageMetadataTagCopyQualifiers(japanese))
+        #expect(qualifiers.count == 1)
+        #expect(CGImageMetadataTagCopyName(qualifiers[0]) == "lang")
+
+        let encoded = try #require(CGImageMetadataCreateXMPData(metadata, nil))
+        let decoded = try #require(CGImageMetadataCreateFromXMPData(encoded))
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded, nil, "dc:subject[0]") == "swift")
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded, nil, "dc:description[ja-JP]") == "ブラウザ画像")
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded, nil, "exif:Flash.Fired") == "true")
+    }
+
+    @Test("Structured values update their navigable and serialized children")
+    func structuredValueMutation() throws {
+        let source = """
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:exif="http://ns.adobe.com/exif/1.0/">
+          <rdf:Description>
+            <dc:subject><rdf:Bag><rdf:li>old</rdf:li></rdf:Bag></dc:subject>
+            <exif:Flash rdf:parseType="Resource"><exif:Fired>true</exif:Fired></exif:Flash>
+          </rdf:Description>
+        </rdf:RDF>
+        """
+        let parsed = try #require(CGImageMetadataCreateFromXMPData(Data(source.utf8)))
+        let metadata = try #require(CGImageMetadataCreateMutableCopy(parsed))
+
+        #expect(CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject", ["gpu", "browser"]))
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:subject[0]") == "gpu")
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "dc:subject[1]") == "browser")
+
+        #expect(CGImageMetadataSetValueWithPath(
+            metadata,
+            nil,
+            "exif:Flash",
+            ["exif:Fired": "false", "exif:Mode": "3"]
+        ))
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "exif:Flash.Fired") == "false")
+        #expect(CGImageMetadataCopyStringValueWithPath(metadata, nil, "exif:Flash.Mode") == "3")
+        #expect(!CGImageMetadataSetValueWithPath(metadata, nil, "dc:subject", Data([0x01])))
+
+        let encoded = try #require(CGImageMetadataCreateXMPData(metadata, nil))
+        let decoded = try #require(CGImageMetadataCreateFromXMPData(encoded))
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded, nil, "dc:subject[1]") == "browser")
+        #expect(CGImageMetadataCopyStringValueWithPath(decoded, nil, "exif:Flash.Mode") == "3")
+    }
+
+    @Test("Recursive enumeration traverses arrays, qualifiers, and structures")
+    func recursiveEnumeration() throws {
+        let source = """
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <rdf:Description><dc:description><rdf:Alt><rdf:li xml:lang="en">Text</rdf:li></rdf:Alt></dc:description></rdf:Description>
+        </rdf:RDF>
+        """
+        let metadata = try #require(CGImageMetadataCreateFromXMPData(Data(source.utf8)))
+        var paths: [String] = []
+        CGImageMetadataEnumerateTagsUsingBlock(
+            metadata,
+            nil,
+            [kCGImageMetadataEnumerateRecursively: true]
+        ) { path, _ in
+            paths.append(path)
+            return true
+        }
+        #expect(paths.contains("dc:description"))
+        #expect(paths.contains("dc:description[en]"))
+        #expect(paths.contains("dc:description[en]?xml:lang"))
+    }
+
+    @Test("Unsupported tag values fail XMP serialization")
+    func unsupportedValueFailsSerialization() throws {
+        let metadata = CGImageMetadataCreateMutable()
+        let tag = try #require(CGImageMetadataTagCreate(
+            kCGImageMetadataNamespaceDublinCore,
+            kCGImageMetadataPrefixDublinCore,
+            "binary",
+            .string,
+            Data([0x01, 0x02])
+        ))
+        #expect(CGImageMetadataSetTagWithPath(metadata, nil, "dc:binary", tag))
+        #expect(CGImageMetadataCreateXMPData(metadata, nil) == nil)
     }
 }
 

@@ -1,7 +1,7 @@
 // CGImageMetadataErrors.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 
 @preconcurrency import Foundation
 

@@ -1,7 +1,7 @@
 // XMPNamespaces.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 // XMP Namespaces and Prefixes
 
 @preconcurrency import Foundation

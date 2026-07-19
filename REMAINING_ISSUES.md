@@ -7,11 +7,11 @@ ImageIO parity. Work is prioritized by correctness and independent evidence.
 
 | Area | Verified | Remaining |
 |---|---|---|
-| PNG/JPEG/GIF/BMP/TIFF pixels | Native, browser, and Apple ImageIO external checks | Expand malformed-input, uncommon color-model, and bitstream coverage |
-| Metadata | EXIF/IPTC/GPS/XMP APIs and common round trips | Broader maker-note and cross-encoder fixtures |
-| Incremental sources | Core state transitions | Progressive behavior across more real-world streams |
-| Auxiliary images | JPEG HDR gain-map path | Depth, disparity, portrait matte, and semantic mattes |
-| WebP | Container/type recognition only | A conforming VP8/VP8L pixel codec before advertising decode or encode |
+| PNG/JPEG/GIF/BMP/TIFF pixels | Native, browser, and Apple ImageIO external checks | Progressive JPEG, uncommon color models, and broader malformed-input corpus |
+| Metadata | Standalone XMP structures, arrays, qualifiers, paths, and Apple parsing | Embedded EXIF/IPTC/GPS/maker-note extraction and cross-encoder fixtures |
+| Incremental sources | Partial/final state transitions | Actual progressive decoding is not implemented |
+| Auxiliary images | Unsupported data is not returned or silently discarded | Gain maps, depth, disparity, portrait matte, and semantic mattes |
+| WebP | Not recognized or advertised as a source/destination | A conforming VP8/VP8L pixel codec before advertising decode or encode |
 | HEIF/AVIF/RAW | Constants and metadata definitions where useful | Pixel codecs remain intentionally unsupported |
 
 ## Next Milestones

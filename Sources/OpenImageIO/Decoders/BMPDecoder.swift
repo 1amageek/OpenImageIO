@@ -8,6 +8,10 @@ import Foundation
 /// BMP image decoder supporting various BMP formats
 internal struct BMPDecoder {
 
+    /// Prevent crafted headers from requesting an unbounded allocation before
+    /// the encoded raster has been validated.
+    private static let maximumDecodedByteCount = 512 * 1024 * 1024
+
     // MARK: - BMP Constants
 
     private static let BMP_SIGNATURE: UInt16 = 0x4D42 // "BM"
@@ -47,14 +51,22 @@ internal struct BMPDecoder {
 
             // Read DIB header
             let dibHeaderSize = readUInt32LE(ptr, offset: 14)
-            guard dibHeaderSize >= 40 else { return nil } // Minimum BITMAPINFOHEADER
+            guard dibHeaderSize >= 40,
+                  UInt64(dibHeaderSize) <= UInt64(data.count - 14) else { return nil }
+            let dibHeaderByteCount = Int(dibHeaderSize)
 
-            let width = Int(readInt32LE(ptr, offset: 18))
-            var height = Int(readInt32LE(ptr, offset: 22))
+            let widthValue = readInt32LE(ptr, offset: 18)
+            let heightValue = readInt32LE(ptr, offset: 22)
+            let planes = readUInt16LE(ptr, offset: 26)
             let bitsPerPixel = Int(readUInt16LE(ptr, offset: 28))
             let compression = readUInt32LE(ptr, offset: 30)
 
-            guard width > 0 else { return nil }
+            guard widthValue > 0,
+                  heightValue != 0,
+                  heightValue != Int32.min,
+                  planes == 1 else { return nil }
+            let width = Int(widthValue)
+            var height = Int(heightValue)
 
             // Handle top-down vs bottom-up
             let topDown = height < 0
@@ -64,15 +76,59 @@ internal struct BMPDecoder {
 
             guard height > 0 else { return nil }
 
+            switch compression {
+            case BI_RGB:
+                guard [1, 4, 8, 16, 24, 32].contains(bitsPerPixel) else { return nil }
+            case BI_RLE8:
+                guard bitsPerPixel == 8 else { return nil }
+            case BI_RLE4:
+                guard bitsPerPixel == 4 else { return nil }
+            case BI_BITFIELDS:
+                guard bitsPerPixel == 16 || bitsPerPixel == 32 else { return nil }
+            default:
+                return nil
+            }
+
+            let (pixelCount, pixelCountOverflow) = width.multipliedReportingOverflow(by: height)
+            let (decodedByteCount, decodedByteCountOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+            guard !pixelCountOverflow,
+                  !decodedByteCountOverflow,
+                  decodedByteCount <= maximumDecodedByteCount else { return nil }
+
+            guard UInt64(dataOffset) <= UInt64(Int.max) else { return nil }
+            let pixelDataOffset = Int(dataOffset)
+            guard pixelDataOffset >= 14 + dibHeaderByteCount,
+                  pixelDataOffset < data.count else { return nil }
+
+            if compression == BI_RGB || compression == BI_BITFIELDS {
+                let (rowBitCount, rowBitCountOverflow) = width.multipliedReportingOverflow(by: bitsPerPixel)
+                let (paddedRowBitCount, paddedRowBitCountOverflow) = rowBitCount.addingReportingOverflow(31)
+                guard !rowBitCountOverflow, !paddedRowBitCountOverflow else { return nil }
+                let rowSize = (paddedRowBitCount / 32) * 4
+                let (rasterByteCount, rasterByteCountOverflow) = rowSize.multipliedReportingOverflow(by: height)
+                let (rasterEnd, rasterEndOverflow) = pixelDataOffset.addingReportingOverflow(rasterByteCount)
+                guard !rasterByteCountOverflow,
+                      !rasterEndOverflow,
+                      rasterEnd <= data.count else { return nil }
+            }
+
             // Read color table if needed
             var colorTable: [(r: UInt8, g: UInt8, b: UInt8, a: UInt8)] = []
             if bitsPerPixel <= 8 {
-                let colorTableOffset = 14 + Int(dibHeaderSize)
-                let numColors = 1 << bitsPerPixel
+                let colorTableOffset = 14 + dibHeaderByteCount
+                let declaredColorCountValue = readUInt32LE(ptr, offset: 46)
+                guard declaredColorCountValue <= UInt32(1 << bitsPerPixel) else { return nil }
+                let declaredColorCount = Int(declaredColorCountValue)
+                let numColors = declaredColorCount == 0 ? (1 << bitsPerPixel) : declaredColorCount
+                let (colorTableByteCount, colorTableByteCountOverflow) = numColors.multipliedReportingOverflow(by: 4)
+                let (colorTableEnd, colorTableEndOverflow) = colorTableOffset.addingReportingOverflow(colorTableByteCount)
+                guard numColors <= (1 << bitsPerPixel),
+                      !colorTableByteCountOverflow,
+                      !colorTableEndOverflow,
+                      colorTableEnd <= pixelDataOffset else { return nil }
 
                 for i in 0..<numColors {
                     let offset = colorTableOffset + i * 4
-                    guard offset + 3 < data.count else { break }
                     let b = ptr[offset]
                     let g = ptr[offset + 1]
                     let r = ptr[offset + 2]
@@ -80,10 +136,6 @@ internal struct BMPDecoder {
                     colorTable.append((r, g, b, a))
                 }
             }
-
-            // Decode pixel data
-            let pixelDataOffset = Int(dataOffset)
-            guard pixelDataOffset < data.count else { return nil }
 
             var pixels: [UInt8]
             var hasAlpha = false
@@ -137,7 +189,7 @@ internal struct BMPDecoder {
                     width: width,
                     height: height,
                     bitsPerPixel: bitsPerPixel,
-                    dibHeaderSize: Int(dibHeaderSize),
+                    dibHeaderSize: dibHeaderByteCount,
                     topDown: topDown
                 )
                 pixels = result.pixels
@@ -448,9 +500,15 @@ internal struct BMPDecoder {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         var hasAlpha = false
 
-        // Read bit masks (after DIB header)
-        let maskOffset = 14 + dibHeaderSize
-        guard maskOffset + 12 <= dataCount else {
+        // BITMAPV2/V3/V4/V5 headers store the masks at the same offsets as
+        // the fields introduced immediately after the 40-byte INFOHEADER.
+        // For a 40-byte INFOHEADER, BI_BITFIELDS places those masks directly
+        // after the header as well. They are never located after the entire
+        // V4/V5 header.
+        let maskOffset = 14 + 40
+        guard dibHeaderSize >= 40,
+              maskOffset + 12 <= dataCount,
+              maskOffset + 12 <= pixelDataOffset else {
             return (pixels, false)
         }
 
@@ -459,7 +517,9 @@ internal struct BMPDecoder {
         let blueMask = readUInt32LE(ptr, offset: maskOffset + 8)
         var alphaMask: UInt32 = 0
 
-        if maskOffset + 16 <= dataCount {
+        if maskOffset + 16 <= dataCount,
+           maskOffset + 16 <= pixelDataOffset,
+           dibHeaderSize >= 56 {
             alphaMask = readUInt32LE(ptr, offset: maskOffset + 12)
             if alphaMask != 0 {
                 hasAlpha = true

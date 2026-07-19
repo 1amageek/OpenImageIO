@@ -101,7 +101,7 @@ internal struct GIFDecoder {
 
             // Decode frame
             guard let framePixels = decodeFrame(data: data, info: info, frame: frame) else {
-                continue
+                return nil
             }
 
             // Composite frame onto canvas

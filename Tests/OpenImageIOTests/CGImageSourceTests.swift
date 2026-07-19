@@ -63,14 +63,16 @@ struct CGImageSourceCreationTests {
         #expect(CGImageSourceGetStatus(source!) == .statusComplete)
     }
 
-    @Test("Create source from valid WebP data")
-    func createWithValidWebPData() {
+    @Test("Unsupported WebP data remains an unknown source type")
+    func unsupportedWebPData() {
         let data = TestData.minimalWebP
         let source = CGImageSourceCreateWithData(data, nil)
 
         #expect(source != nil)
-        #expect(CGImageSourceGetType(source!) == "org.webmproject.webp")
-        #expect(CGImageSourceGetStatus(source!) == .statusComplete)
+        #expect(CGImageSourceGetType(source!) == nil)
+        #expect(CGImageSourceGetStatus(source!) == .statusUnknownType)
+        #expect(CGImageSourceGetCount(source!) == 0)
+        #expect(CGImageSourceCreateImageAtIndex(source!, 0, nil) == nil)
     }
 
     @Test("Create source from empty data returns incomplete status")
@@ -294,6 +296,26 @@ struct CGImageSourceStatusTests {
         let source = CGImageSourceCreateWithData(data, nil)!
 
         #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
+    }
+
+    @Test("Recognized signatures with undecodable payloads are invalid")
+    func recognizedButUndecodablePayloads() {
+        let samples: [(type: String, data: Data)] = [
+            ("public.png", Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] + [UInt8](repeating: 0, count: 32))),
+            ("public.jpeg", Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10] + [UInt8](repeating: 0, count: 16))),
+            ("com.compuserve.gif", Data(Array("GIF89a".utf8) + [UInt8](repeating: 0, count: 20))),
+            ("com.microsoft.bmp", Data(Array("BM".utf8) + [UInt8](repeating: 0, count: 64))),
+            ("public.tiff", Data([0x49, 0x49, 0x2A, 0x00] + [UInt8](repeating: 0, count: 28)))
+        ]
+
+        for sample in samples {
+            let source = CGImageSourceCreateWithData(sample.data, nil)!
+            #expect(CGImageSourceGetType(source) == sample.type)
+            #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
+            #expect(CGImageSourceGetCount(source) == 0)
+            #expect(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) == nil)
+            #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
+        }
     }
 
     @Test("Get status for unknown type")

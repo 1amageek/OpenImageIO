@@ -1,7 +1,7 @@
 // EXIFProperties.swift
 // OpenImageIO
 //
-// Full API compatibility with Apple's ImageIO framework
+// ImageIO-compatible API surface for non-Apple platforms
 // Metadata keys for Exchangeable Image File Format (EXIF) data
 //
 // NOTE: EXIF parsing is not yet implemented. These keys are exported for

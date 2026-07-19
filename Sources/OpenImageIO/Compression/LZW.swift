@@ -132,7 +132,9 @@ private struct LZWDecoder {
                     table.append(newEntry)
                     nextCode += 1
 
-                    // Increase code size if needed (when nextCode exceeds current code size capacity)
+                    // The decoder grows its dictionary one emitted code behind
+                    // the encoder, so it changes width as soon as the next slot
+                    // reaches the current code-space limit.
                     if nextCode >= (1 << codeSize) && codeSize < LZW.MAX_CODE_SIZE {
                         codeSize += 1
                     }
@@ -199,8 +201,10 @@ private struct LZWEncoder {
                     stringTable[testString] = nextCode
                     nextCode += 1
 
-                    // Increase code size if needed (when nextCode exceeds current code size capacity)
-                    if nextCode >= (1 << codeSize) && codeSize < LZW.MAX_CODE_SIZE {
+                    // The encoder assigns entries one emitted code ahead of the
+                    // decoder. Code `limit - 1` is still emitted at the old
+                    // width; increase only after assigning the following slot.
+                    if nextCode > (1 << codeSize) && codeSize < LZW.MAX_CODE_SIZE {
                         codeSize += 1
                     }
                 } else {

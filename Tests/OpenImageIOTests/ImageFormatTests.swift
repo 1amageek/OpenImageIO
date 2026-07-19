@@ -117,12 +117,12 @@ struct JPEGFormatTests {
 
     @Test("Parse JPEG dimensions")
     func parseDimensions() {
-        let jpegData = TestData.jpegWithDimensions(width: 640, height: 480)
+        let jpegData = TestData.jpegWithDimensions(width: 64, height: 48)
         let source = CGImageSourceCreateWithData(jpegData, nil)!
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
 
-        #expect(props[kCGImagePropertyPixelWidth] as? Int == 640)
-        #expect(props[kCGImagePropertyPixelHeight] as? Int == 480)
+        #expect(props[kCGImagePropertyPixelWidth] as? Int == 64)
+        #expect(props[kCGImagePropertyPixelHeight] as? Int == 48)
     }
 
     @Test("JPEG color model is RGB")
@@ -150,32 +150,25 @@ struct JPEGFormatTests {
         let data = TestData.minimalJPEG
         let source = CGImageSourceCreateWithData(data, nil)!
 
-        // Try to decode - minimal JPEG may or may not decode depending on implementation
         let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-
-        // Verify format detection works regardless of decode success
-        #expect(CGImageSourceGetType(source) == "public.jpeg")
-
-        // If decoding succeeds, verify dimensions
-        if let img = image {
-            #expect(img.width == 8)
-            #expect(img.height == 8)
-        }
+        #expect(image != nil)
+        #expect(image?.width == 8)
+        #expect(image?.height == 8)
     }
 
     @Test("Decode JPEG with various dimensions")
     func decodeVariousDimensions() {
-        let jpegData = TestData.jpegWithDimensions(width: 640, height: 480)
+        let jpegData = TestData.jpegWithDimensions(width: 64, height: 48)
         let source = CGImageSourceCreateWithData(jpegData, nil)!
 
-        // Note: jpegWithDimensions creates header-only JPEG for dimension parsing
-        // Full decoding may not work with incomplete data
         let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        #expect(image != nil)
+        #expect(image?.width == 64)
+        #expect(image?.height == 48)
 
-        // Even if decode fails, properties should be accessible
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
-        #expect(props[kCGImagePropertyPixelWidth] as? Int == 640)
-        #expect(props[kCGImagePropertyPixelHeight] as? Int == 480)
+        #expect(props[kCGImagePropertyPixelWidth] as? Int == 64)
+        #expect(props[kCGImagePropertyPixelHeight] as? Int == 48)
     }
 }
 
@@ -299,6 +292,18 @@ struct BMPFormatTests {
         let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
 
         #expect(props[kCGImagePropertyDepth] as? Int == 24)
+    }
+
+    @Test("Oversized BMP dimensions fail without allocating")
+    func oversizedDimensionsFail() {
+        var data = TestData.minimalBMP
+        data.replaceSubrange(18..<22, with: [0xFF, 0xFF, 0xFF, 0x7F])
+        data.replaceSubrange(22..<26, with: [0xFF, 0xFF, 0xFF, 0x7F])
+
+        let source = CGImageSourceCreateWithData(data, nil)!
+        #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
+        #expect(CGImageSourceGetCount(source) == 0)
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
     }
 }
 
@@ -457,9 +462,8 @@ struct TIFFFormatTests {
     }
 
     /// Construct a TIFF whose `nextIFDOffset` points back at the first IFD.
-    /// The cycle guard (`visited: Set<Int>`) in `CGImageSource.parseTIFF`
-    /// must break the walk on the second visit, so `CGImageSourceGetCount`
-    /// returns in bounded time (1 page counted, not a hang).
+    /// The cycle guard in `TIFFDecoder.pageCount`
+    /// must reject the malformed container in bounded time.
     @Test("Malformed IFD chain cycle: parse terminates instead of hanging")
     func malformedIFDChainCycleTerminates() throws {
         let tiff = makeCyclicIFDTIFF()
@@ -467,10 +471,35 @@ struct TIFFFormatTests {
         let source = try #require(CGImageSourceCreateWithData(tiff, nil))
         let count = CGImageSourceGetCount(source)
 
-        // The first IFD is counted, then the self-referencing `nextIFDOffset`
-        // is caught by the cycle guard — so count must be exactly 1 and the
-        // call must terminate (verified implicitly by this test completing).
-        #expect(count == 1, "Cycle guard must stop after the first IFD")
+        #expect(count == 0, "A cyclic TIFF must not advertise a decodable page")
+        #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
+    }
+
+    @Test("Inline SHORT ignores padding bytes")
+    func inlineShortIgnoresPaddingBytes() throws {
+        var bytes = Array(TestData.minimalTIFF)
+        // ImageWidth is a one-element SHORT stored in the four-byte value field.
+        // The last two bytes are padding, not part of the numeric value.
+        bytes[20] = 0xFF
+        bytes[21] = 0xFF
+
+        let source = try #require(CGImageSourceCreateWithData(Data(bytes), nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        #expect(image.width == 2)
+        #expect(image.height == 2)
+        #expect(CGImageSourceGetStatus(source) == .statusComplete)
+    }
+
+    @Test("Out-of-range strip offset is rejected")
+    func outOfRangeStripOffsetIsRejected() throws {
+        var bytes = Array(TestData.minimalTIFF)
+        // StripOffsets is entry six; its LONG value field starts at byte 78.
+        bytes.replaceSubrange(78..<82, with: [0xFF, 0xFF, 0xFF, 0x7F])
+
+        let source = try #require(CGImageSourceCreateWithData(Data(bytes), nil))
+        #expect(CGImageSourceGetStatus(source) == .statusInvalidData)
+        #expect(CGImageSourceGetCount(source) == 0)
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
     }
 
     // MARK: - TIFF Fixture Builders
@@ -590,53 +619,6 @@ struct TIFFFormatTests {
     }
 }
 
-// MARK: - WebP Format Tests
-
-@Suite("WebP Format Parsing")
-struct WebPFormatTests {
-
-    @Test("Parse WebP signature")
-    func parseSignature() {
-        let data = TestData.minimalWebP
-        let source = CGImageSourceCreateWithData(data, nil)!
-
-        #expect(CGImageSourceGetType(source) == "org.webmproject.webp")
-    }
-
-    @Test("Parse WebP dimensions")
-    func parseDimensions() {
-        let data = TestData.minimalWebP
-        let source = CGImageSourceCreateWithData(data, nil)!
-        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
-
-        // WebP parsing extracts dimensions from VP8 chunk
-        let width = props[kCGImagePropertyPixelWidth] as? Int
-        let height = props[kCGImagePropertyPixelHeight] as? Int
-
-        #expect(width != nil)
-        #expect(height != nil)
-    }
-
-    @Test("WebP pixel decoding is unsupported")
-    func pixelDecodingIsUnsupported() {
-        let data = TestData.minimalWebP
-        let source = CGImageSourceCreateWithData(data, nil)!
-
-        #expect(CGImageSourceGetType(source) == "org.webmproject.webp")
-        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
-    }
-
-    @Test("WebP color model")
-    func colorModel() {
-        let data = TestData.minimalWebP
-        let source = CGImageSourceCreateWithData(data, nil)!
-        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)!
-
-        // WebP uses RGB color model
-        #expect(props[kCGImagePropertyColorModel] as? String == kCGImagePropertyColorModelRGB)
-    }
-}
-
 // MARK: - Format Detection Tests
 
 @Suite("Format Detection")
@@ -693,18 +675,6 @@ struct FormatDetectionTests {
         #expect(CGImageSourceGetType(source) == "public.tiff")
     }
 
-    @Test("Detect WebP from magic bytes")
-    func detectWebP() {
-        // RIFF....WEBP
-        let riffHeader: [UInt8] = [0x52, 0x49, 0x46, 0x46] // "RIFF"
-        let size: [UInt8] = [0x00, 0x00, 0x00, 0x00] // Size placeholder
-        let webpSig: [UInt8] = [0x57, 0x45, 0x42, 0x50] // "WEBP"
-        let data = Data(riffHeader + size + webpSig + [UInt8](repeating: 0, count: 20))
-        let source = CGImageSourceCreateWithData(data, nil)!
-
-        #expect(CGImageSourceGetType(source) == "org.webmproject.webp")
-    }
-
     @Test("Unknown format returns nil type")
     func unknownFormat() {
         let data = TestData.invalidData
@@ -747,7 +717,7 @@ struct ImageAnimationTests {
         let gifData = TestData.animatedGIF(frameCount: 5, width: 10, height: 10)
 
         var frameCount = 0
-        CGAnimateImageDataWithBlock(gifData, nil) { index, image, stop in
+        _ = CGAnimateImageDataWithBlock(gifData, nil) { index, image, stop in
             frameCount += 1
             if frameCount >= 2 {
                 stop.pointee = true

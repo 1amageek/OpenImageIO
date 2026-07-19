@@ -44,9 +44,7 @@ internal struct Deflate {
 
             // Verify Adler-32 checksum
             let checksumOffset = inflater.currentByteOffset
-            guard checksumOffset + 4 <= data.count else {
-                return decompressed // Return data even if checksum is missing
-            }
+            guard checksumOffset + 4 <= data.count else { return nil }
 
             let storedChecksum = (UInt32(ptr[checksumOffset]) << 24) |
                                  (UInt32(ptr[checksumOffset + 1]) << 16) |
@@ -64,6 +62,7 @@ internal struct Deflate {
 
     /// Decompress raw DEFLATE data (without zlib wrapper)
     static func inflateRaw(data: Data, offset: Int = 0) -> Data? {
+        guard offset >= 0, offset <= data.count else { return nil }
         var inflater = Inflater(data: data, offset: offset)
         return inflater.inflate()
     }
@@ -113,6 +112,9 @@ internal struct Deflate {
     // MARK: - Stored Blocks (No Compression)
 
     private static func deflateStore(data: Data) -> Data {
+        if data.isEmpty {
+            return Data([0x01, 0x00, 0x00, 0xFF, 0xFF])
+        }
         let maxBlockSize = 65535
         let numBlocks = (data.count + maxBlockSize - 1) / maxBlockSize
         // Pre-allocate: 5 bytes header per block + data
@@ -287,8 +289,8 @@ private struct Inflater {
     }
 
     private mutating func inflateFixed() -> Bool {
-        let litLenTree = HuffmanTree.fixedLiteralLengthTree
-        let distTree = HuffmanTree.fixedDistanceTree
+        let litLenTree = HuffmanTree.makeFixedLiteralLengthTree()
+        let distTree = HuffmanTree.makeFixedDistanceTree()
 
         return inflateWithTrees(litLenTree: litLenTree, distTree: distTree)
     }
@@ -332,25 +334,30 @@ private struct Inflater {
                 allCodeLengths.append(symbol)
             } else if symbol == 16 {
                 guard let repeat_count = bitReader.readBits(2),
-                      !allCodeLengths.isEmpty else {
+                      let lastLen = allCodeLengths.last else {
                     return false
                 }
-                let lastLen = allCodeLengths.last!
-                for _ in 0..<(Int(repeat_count) + 3) {
+                let repetitionCount = Int(repeat_count) + 3
+                guard allCodeLengths.count + repetitionCount <= totalCodes else { return false }
+                for _ in 0..<repetitionCount {
                     allCodeLengths.append(lastLen)
                 }
             } else if symbol == 17 {
                 guard let repeat_count = bitReader.readBits(3) else {
                     return false
                 }
-                for _ in 0..<(Int(repeat_count) + 3) {
+                let repetitionCount = Int(repeat_count) + 3
+                guard allCodeLengths.count + repetitionCount <= totalCodes else { return false }
+                for _ in 0..<repetitionCount {
                     allCodeLengths.append(0)
                 }
             } else if symbol == 18 {
                 guard let repeat_count = bitReader.readBits(7) else {
                     return false
                 }
-                for _ in 0..<(Int(repeat_count) + 11) {
+                let repetitionCount = Int(repeat_count) + 11
+                guard allCodeLengths.count + repetitionCount <= totalCodes else { return false }
+                for _ in 0..<repetitionCount {
                     allCodeLengths.append(0)
                 }
             }
@@ -538,20 +545,20 @@ private struct HuffmanTree {
     }
 
     // Fixed literal/length tree (codes 0-287)
-    nonisolated(unsafe) static let fixedLiteralLengthTree: HuffmanTree = {
+    static func makeFixedLiteralLengthTree() -> HuffmanTree {
         var codeLengths = [Int](repeating: 0, count: 288)
         for i in 0...143 { codeLengths[i] = 8 }
         for i in 144...255 { codeLengths[i] = 9 }
         for i in 256...279 { codeLengths[i] = 7 }
         for i in 280...287 { codeLengths[i] = 8 }
         return HuffmanTree(codeLengths: codeLengths)!
-    }()
+    }
 
     // Fixed distance tree (codes 0-31)
-    nonisolated(unsafe) static let fixedDistanceTree: HuffmanTree = {
+    static func makeFixedDistanceTree() -> HuffmanTree {
         let codeLengths = [Int](repeating: 5, count: 32)
         return HuffmanTree(codeLengths: codeLengths)!
-    }()
+    }
 }
 
 // MARK: - Bit Reader
@@ -562,7 +569,7 @@ private struct BitReader {
     private var bitBuffer: UInt32 = 0
     private var bitCount: Int = 0
 
-    var byteOffset: Int { offset }
+    var byteOffset: Int { offset - bitCount / 8 }
 
     init(data: Data, offset: Int) {
         self.data = data

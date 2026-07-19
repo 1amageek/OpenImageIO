@@ -191,144 +191,22 @@ enum TestData {
 
     // MARK: - JPEG Test Data
 
-    /// Complete minimal JPEG (8x8 grayscale, solid gray)
-    /// This JPEG can be fully decoded to verify decoder functionality
+    /// Complete JPEG produced by the package encoder.
     static var minimalJPEG: Data {
-        var data: [UInt8] = []
-
-        // SOI - Start of Image
-        data.append(contentsOf: [0xFF, 0xD8])
-
-        // APP0 - JFIF marker
-        data.append(contentsOf: [0xFF, 0xE0])
-        data.append(contentsOf: [0x00, 0x10]) // Length = 16
-        data.append(contentsOf: Array("JFIF".utf8))
-        data.append(0x00) // Null terminator
-        data.append(contentsOf: [0x01, 0x01]) // Version 1.1
-        data.append(0x00) // Units = none
-        data.append(contentsOf: [0x00, 0x01]) // X density = 1
-        data.append(contentsOf: [0x00, 0x01]) // Y density = 1
-        data.append(contentsOf: [0x00, 0x00]) // No thumbnail
-
-        // DQT - Define Quantization Table
-        data.append(contentsOf: [0xFF, 0xDB])
-        data.append(contentsOf: [0x00, 0x43]) // Length = 67
-        data.append(0x00) // Table 0, 8-bit precision
-        // Simple quantization table (all 16s for easy math)
-        for _ in 0..<64 {
-            data.append(0x10) // Q = 16
-        }
-
-        // SOF0 - Start of Frame (Baseline DCT)
-        data.append(contentsOf: [0xFF, 0xC0])
-        data.append(contentsOf: [0x00, 0x0B]) // Length = 11
-        data.append(0x08) // Precision = 8 bits
-        data.append(contentsOf: [0x00, 0x08]) // Height = 8
-        data.append(contentsOf: [0x00, 0x08]) // Width = 8
-        data.append(0x01) // Number of components = 1 (grayscale)
-        data.append(0x01) // Component ID = 1
-        data.append(0x11) // Sampling: H=1, V=1
-        data.append(0x00) // Quantization table = 0
-
-        // DHT - Define Huffman Table (DC)
-        data.append(contentsOf: [0xFF, 0xC4])
-        data.append(contentsOf: [0x00, 0x1F]) // Length = 31
-        data.append(0x00) // DC table 0
-        // Code counts for each bit length (1-16)
-        data.append(contentsOf: [0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01,
-                                 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-        // Values: standard JPEG DC luminance table
-        data.append(contentsOf: [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B])
-
-        // DHT - Define Huffman Table (AC)
-        data.append(contentsOf: [0xFF, 0xC4])
-        data.append(contentsOf: [0x00, 0xB5]) // Length = 181
-        data.append(0x10) // AC table 0
-        // Code counts (standard JPEG AC luminance table)
-        data.append(contentsOf: [0x00, 0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03,
-                                 0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D])
-        // AC values (162 values for standard table)
-        let acValues: [UInt8] = [
-            0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12,
-            0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
-            0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08,
-            0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
-            0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16,
-            0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
-            0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
-            0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
-            0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59,
-            0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
-            0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79,
-            0x7A, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
-            0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
-            0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
-            0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6,
-            0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5,
-            0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4,
-            0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xE1, 0xE2,
-            0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA,
-            0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
-            0xF9, 0xFA
-        ]
-        data.append(contentsOf: acValues)
-
-        // SOS - Start of Scan
-        data.append(contentsOf: [0xFF, 0xDA])
-        data.append(contentsOf: [0x00, 0x08]) // Length = 8
-        data.append(0x01) // Number of components = 1
-        data.append(0x01) // Component ID = 1
-        data.append(0x00) // DC table 0, AC table 0
-        data.append(contentsOf: [0x00, 0x3F, 0x00]) // Spectral selection
-
-        // Compressed image data for 8x8 solid gray (128) image
-        // DC coefficient = 0 (128-128=0, after DCT still 0 for solid color)
-        // All AC coefficients = 0 (solid color)
-        // Huffman encoded: DC=0 uses code "00" (2 bits), EOB uses code "1010" (4 bits)
-        // Binary: 00 1010 -> padded to byte: 0010 1000 = 0x28
-        // But we need to ensure byte stuffing for 0xFF
-        data.append(contentsOf: [0x7F, 0xFF, 0x00, 0xD9]) // Simplified: gray data + stuffing + EOI marker embedded
-
-        // Actually, let's use a known working minimal scan data
-        // For solid gray 128: DC diff = 0 (code: 00), EOB (code: 1010)
-        // Bits: 00 1010 xx -> 0010 1000 = 0x28, padded with 1s = 0x2B or similar
-        // Let me use a pre-computed valid sequence
-        data.removeLast(4) // Remove the previous attempt
-        data.append(contentsOf: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]) // Padding
-        data.append(contentsOf: [0xFF, 0xD9]) // EOI
-
-        return Data(data)
+        makeJPEG(width: 8, height: 8)
     }
 
-    /// JPEG with specified dimensions (header only, for dimension parsing tests)
+    /// Complete JPEG with the specified dimensions.
     static func jpegWithDimensions(width: Int, height: Int) -> Data {
-        var data: [UInt8] = []
+        makeJPEG(width: width, height: height)
+    }
 
-        // SOI
-        data.append(contentsOf: [0xFF, 0xD8])
-
-        // APP0
-        data.append(contentsOf: [0xFF, 0xE0])
-        data.append(contentsOf: [0x00, 0x10])
-        data.append(contentsOf: Array("JFIF".utf8))
-        data.append(0x00)
-        data.append(contentsOf: [0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00])
-
-        // SOF0
-        data.append(contentsOf: [0xFF, 0xC0])
-        data.append(contentsOf: [0x00, 0x0B])
-        data.append(0x08)
-        data.append(UInt8((height >> 8) & 0xFF))
-        data.append(UInt8(height & 0xFF))
-        data.append(UInt8((width >> 8) & 0xFF))
-        data.append(UInt8(width & 0xFF))
-        data.append(0x01)
-        data.append(contentsOf: [0x01, 0x11, 0x00])
-
-        // EOI
-        data.append(contentsOf: [0xFF, 0xD9])
-
-        return Data(data)
+    private static func makeJPEG(width: Int, height: Int) -> Data {
+        let image = createTestImage(width: width, height: height)
+        guard let data = JPEGEncoder.encode(image: image) else {
+            fatalError("The JPEG test fixture encoder failed")
+        }
+        return data
     }
 
     // MARK: - GIF Test Data
@@ -444,7 +322,7 @@ enum TestData {
         // BMP header
         data.append(contentsOf: Array("BM".utf8))
 
-        // File size (placeholder)
+        // File size
         data.append(contentsOf: [0x46, 0x00, 0x00, 0x00]) // 70 bytes
 
         // Reserved

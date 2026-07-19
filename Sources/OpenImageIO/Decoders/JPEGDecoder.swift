@@ -140,7 +140,7 @@ internal struct JPEGDecoder {
                     let numComponents = Int(ptr[segmentStart])
 
                     var scanOffset = segmentStart + 1
-                    for i in 0..<numComponents {
+                    for _ in 0..<numComponents {
                         guard scanOffset + 1 < segmentEnd else { break }
                         let compId = Int(ptr[scanOffset])
                         let tableIds = ptr[scanOffset + 1]
@@ -195,8 +195,6 @@ internal struct JPEGDecoder {
             pos += 1
 
             var table = QuantizationTable()
-            let bytesPerValue = precision == 0 ? 1 : 2
-
             for i in 0..<64 {
                 guard pos < end else { break }
                 if precision == 0 {
@@ -664,7 +662,7 @@ private struct JPEGBitReader {
     private mutating func loadByte() -> Bool {
         guard offset < endOffset else { return false }
 
-        var byte = ptr[offset]
+        let byte = ptr[offset]
         offset += 1
 
         // Handle byte stuffing (0xFF 0x00 -> 0xFF)

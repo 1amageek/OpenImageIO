@@ -28,9 +28,9 @@ let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 - **Externally Verified Codecs** - PNG, JPEG, GIF, BMP, and TIFF
 - **Image Sources** - Read and decode image data with `CGImageSource`
 - **Image Destinations** - Encode and write image data with `CGImageDestination`
-- **Rich Metadata Support** - EXIF, IPTC, GPS, XMP, TIFF, and format-specific metadata
-- **Manufacturer Metadata** - Canon, Nikon, Apple, and other camera maker notes
-- **Incremental Loading** - Progressive image loading support
+- **XMP Metadata** - RDF structures, arrays, qualifiers, namespace registration, paths, and serialization
+- **Image Property Constants** - Current ImageIO key names for EXIF, IPTC, GPS, TIFF, and format dictionaries
+- **Incremental Sources** - Accumulate data and validate the complete payload when the final update arrives
 - **Thumbnail Generation** - Create thumbnails with configurable options
 
 ## Requirements
@@ -83,9 +83,9 @@ print("Size: \(image!.width) x \(image!.height)")
 ### Creating Thumbnails
 
 ```swift
-let options: CFDictionary = [
-    kCGImageSourceThumbnailMaxPixelSize as String: 200,
-    kCGImageSourceCreateThumbnailFromImageAlways as String: true
+let options: [String: Any] = [
+    kCGImageSourceThumbnailMaxPixelSize: 200,
+    kCGImageSourceCreateThumbnailFromImageAlways: true
 ]
 
 let thumbnail = CGImageSourceCreateThumbnailAtIndex(source!, 0, options)
@@ -156,18 +156,13 @@ CGImageDestinationFinalize(destination)
 let metadata = CGImageMetadataCreateMutable()
 
 // Set values
-CGImageMetadataSetValueWithPath(
-    metadata,
-    nil,
-    "dc:title" as CFString,
-    "My Photo"
-)
+CGImageMetadataSetValueWithPath(metadata, nil, "dc:title", "My Photo")
 
 // Read values
 let title = CGImageMetadataCopyStringValueWithPath(
     metadata,
     nil,
-    "dc:title" as CFString
+    "dc:title"
 )
 
 // Create XMP data
@@ -179,7 +174,7 @@ let xmpData = CGImageMetadataCreateXMPData(metadata, nil)
 ```swift
 let source = CGImageSourceCreateIncremental(nil)
 
-// Feed partial data
+// Feed partial data; no successful image is exposed yet.
 CGImageSourceUpdateData(source, partialData, false)
 
 // Check status
@@ -213,16 +208,14 @@ CGImageSourceUpdateData(source, completeData, true)
 
 > **Note**: HEIF/HEIC support would require implementing an HEVC decoder (thousands of lines of code) or using external libraries like `libheif` compiled to WebAssembly.
 
-## Supported Metadata
+## Metadata Status
 
-- **EXIF** - Exposure, aperture, ISO, date/time, camera settings
-- **IPTC** - Copyright, caption, keywords, location
-- **GPS** - Latitude, longitude, altitude, timestamps
-- **TIFF** - Resolution, orientation, software, artist
-- **XMP** - Dublin Core, Photoshop, IPTC Core, EXIF
-- **DNG** - Complete Digital Negative metadata support
-- **HEIC/HEIF** - Property keys defined (format itself not supported, see above)
-- **Maker Notes** - Canon, Nikon, Apple, Fuji, Olympus, Pentax, Minolta
+| Area | Status |
+|---|---|
+| Standalone XMP | Parsed and serialized with RDF arrays, structures, qualifiers, and namespaces |
+| Image dimensions / color model / depth | Returned for exercised codec paths |
+| EXIF, IPTC, GPS, maker notes | Public property-key constants are present; embedded payload extraction is not yet implemented |
+| Auxiliary images | Not advertised; source lookup returns `nil` and destination finalization fails when auxiliary data is supplied |
 
 ## Building
 
@@ -235,8 +228,8 @@ perl -e 'alarm 30; exec @ARGV' -- \
   xcodebuild test -scheme OpenImageIO -destination 'platform=macOS' \
   -only-testing:OpenImageIOTests
 
-# Build for WebAssembly
-swift build --swift-sdk swift-6.3.1-RELEASE_wasm
+# Build for WebAssembly with the matching Swift toolchain
+swiftly run swift build --swift-sdk swift-6.3.1-RELEASE_wasm
 ```
 
 ## WASM-Build Smoke Test
@@ -246,14 +239,15 @@ suite builds a WASM smoke executable and runs the generated module in a real
 browser, in addition to the package build check:
 
 ```bash
-bash tests/wasm-build.sh
-cd Tests/e2e && npm test
+bash Tests/wasm-build.sh
+cd Tests/e2e && npm run build && npm test
 ```
 
-The current verified baseline is 267 native tests plus Apple ImageIO
-external-conformance and browser checks for PNG, JPEG, GIF, BMP, and TIFF.
-This is evidence for those exercised paths, not a claim of complete ImageIO
-parity.
+The current verified baseline is maintained in `QUALITY_CHECKLIST.md`. It
+includes native tests, bidirectional Apple ImageIO conformance for
+PNG/JPEG/GIF/BMP/TIFF, a Swift WASM PNG pixel roundtrip, and Chromium decode
+checks for PNG/JPEG/GIF/BMP. This is evidence for those exercised paths, not a
+claim of complete ImageIO parity.
 
 ## Cross-Platform Pattern
 
