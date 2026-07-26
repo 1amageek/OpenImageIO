@@ -5,34 +5,27 @@
 
 @preconcurrency import Foundation
 import OpenCoreGraphics
+import Synchronization
 
 /// An opaque type that you use to read image data from a URL, data object, or data consumer.
-public class CGImageSource: Hashable, Equatable {
+public final class CGImageSource: Hashable, Equatable, Sendable {
 
-    // MARK: - Internal Storage
+    private struct State {
+        var generation: UInt64
+        var parsed: CGImageSourceParsedState
+    }
 
-    internal var imageData: Data
-    internal var options: [String: Any]?
-    internal var isIncremental: Bool
-    internal var imageCount: Int = 0
-    internal var sourceType: String?
-    internal var status: CGImageSourceStatus = .statusIncomplete
-    internal var properties: [String: Any] = [:]
-    internal var imageProperties: [[String: Any]] = []
-    internal var decodedImages: [CGImage] = []
-    /// Auxiliary data by image index. Key is auxiliary data type (e.g., kCGImageAuxiliaryDataTypeHDRGainMap).
-    internal var auxiliaryDataByIndex: [[String: [String: Any]]] = []
+    private let isIncremental: Bool
+    private let state: Mutex<State>
 
     // MARK: - Initialization
 
     internal init(data: Data, options: [String: Any]?, isIncremental: Bool = false) {
-        self.imageData = data
-        self.options = options
         self.isIncremental = isIncremental
-
-        if !isIncremental && !data.isEmpty {
-            parseImageData()
-        }
+        let parsed = isIncremental
+            ? CGImageSourceParsedState()
+            : ImageSourceParser(data: data).parse(final: true, incremental: false)
+        self.state = Mutex(State(generation: 0, parsed: parsed))
     }
 
     // MARK: - Hashable & Equatable
@@ -45,305 +38,37 @@ public class CGImageSource: Hashable, Equatable {
         hasher.combine(ObjectIdentifier(self))
     }
 
-    // MARK: - Internal Methods
+    internal func parsedSnapshot() -> CGImageSourceParsedState {
+        state.withLock { $0.parsed }
+    }
 
-    internal func parseImageData() {
-        sourceType = nil
-        imageCount = 0
-        properties = [:]
-        imageProperties = []
-        decodedImages = []
-        auxiliaryDataByIndex = []
-
-        // Detect image type and parse
-        guard imageData.count >= 8 else {
-            status = .statusInvalidData
-            return
+    internal func update(data: Data, final: Bool) {
+        let generation = state.withLock { locked -> UInt64 in
+            locked.generation &+= 1
+            return locked.generation
         }
-
-        imageData.withUnsafeBytes { buffer in
-            guard let bytes = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-                status = .statusInvalidData
-                return
-            }
-
-            // PNG signature: 137 80 78 71 13 10 26 10
-            if imageData.count >= 8 &&
-               bytes[0] == 0x89 && bytes[1] == 0x50 &&
-               bytes[2] == 0x4E && bytes[3] == 0x47 {
-                sourceType = "public.png"
-                parsePNG(bytes: bytes, count: imageData.count)
-            }
-            // JPEG signature: FF D8 FF
-            else if imageData.count >= 3 &&
-                    bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
-                sourceType = "public.jpeg"
-                parseJPEG()
-            }
-            // GIF signature: GIF87a or GIF89a
-            else if imageData.count >= 6 &&
-                    bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 {
-                sourceType = "com.compuserve.gif"
-                parseGIF(bytes: bytes, count: imageData.count)
-            }
-            // BMP signature: BM
-            else if imageData.count >= 2 &&
-                    bytes[0] == 0x42 && bytes[1] == 0x4D {
-                sourceType = "com.microsoft.bmp"
-                parseBMP(bytes: bytes, count: imageData.count)
-            }
-            // TIFF signature: II (little-endian) or MM (big-endian)
-            else if imageData.count >= 4 &&
-                    ((bytes[0] == 0x49 && bytes[1] == 0x49) ||
-                     (bytes[0] == 0x4D && bytes[1] == 0x4D)) {
-                sourceType = "public.tiff"
-                parseTIFF()
-            }
-            else {
-                status = .statusUnknownType
-            }
+        let parsed = ImageSourceParser(data: data).parse(
+            final: final,
+            incremental: isIncremental
+        )
+        state.withLock { locked in
+            guard locked.generation == generation else { return }
+            locked.parsed = parsed
         }
     }
 
-    internal func parsePNG(bytes: UnsafePointer<UInt8>, count: Int) {
-        guard count > 25,
-              let decoded = PNGDecoder.decode(data: imageData),
-              let image = makeDecodedImage(
-                pixels: decoded.pixels,
-                width: decoded.width,
-                height: decoded.height,
-                hasAlpha: decoded.hasAlpha
-              ) else {
-            status = .statusInvalidData
-            return
-        }
-
-        // IHDR chunk starts at byte 8, chunk length is 4 bytes, type is 4 bytes, then width/height
-        let widthOffset = 16
-        let heightOffset = 20
-
-        let headerWidth = (Int(bytes[widthOffset]) << 24) |
-                          (Int(bytes[widthOffset + 1]) << 16) |
-                          (Int(bytes[widthOffset + 2]) << 8) |
-                          Int(bytes[widthOffset + 3])
-
-        let headerHeight = (Int(bytes[heightOffset]) << 24) |
-                           (Int(bytes[heightOffset + 1]) << 16) |
-                           (Int(bytes[heightOffset + 2]) << 8) |
-                           Int(bytes[heightOffset + 3])
-        guard decoded.width == headerWidth, decoded.height == headerHeight else {
-            status = .statusInvalidData
-            return
-        }
-
-        let bitDepth = Int(bytes[24])
-        let colorType = Int(bytes[25])
-
-        imageCount = 1
-        properties = [
-            kCGImagePropertyPixelWidth: decoded.width,
-            kCGImagePropertyPixelHeight: decoded.height,
-            kCGImagePropertyDepth: bitDepth,
-            kCGImagePropertyColorModel: colorModelFromPNGColorType(colorType)
-        ]
-        imageProperties = [properties]
-        decodedImages = [image]
-        auxiliaryDataByIndex = [[:]]
-        status = .statusComplete
-    }
-
-    internal func parseJPEG() {
-        guard imageData.count > 2,
-              let decoded = JPEGDecoder.decode(data: imageData),
-              let image = makeDecodedImage(
-                pixels: decoded.pixels,
-                width: decoded.width,
-                height: decoded.height,
-                hasAlpha: false
-              ) else {
-            status = .statusInvalidData
-            return
-        }
-
-        imageCount = 1
-        properties = [
-            kCGImagePropertyPixelWidth: decoded.width,
-            kCGImagePropertyPixelHeight: decoded.height,
-            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
-        ]
-        imageProperties = [properties]
-        decodedImages = [image]
-        auxiliaryDataByIndex = [[:]]
-        status = .statusComplete
-    }
-
-    internal func parseGIF(bytes: UnsafePointer<UInt8>, count: Int) {
-        guard count > 12 else {
-            status = .statusInvalidData
-            return
-        }
-
-        let width = Int(bytes[6]) | (Int(bytes[7]) << 8)
-        let height = Int(bytes[8]) | (Int(bytes[9]) << 8)
-        let frameCount = GIFDecoder.frameCount(data: imageData)
-        guard frameCount > 0 else {
-            status = .statusInvalidData
-            return
-        }
-        var frames: [CGImage] = []
-        frames.reserveCapacity(frameCount)
-        for index in 0..<frameCount {
-            guard let decoded = GIFDecoder.decode(data: imageData, frameIndex: index),
-                  decoded.width == width,
-                  decoded.height == height,
-                  let image = makeDecodedImage(
-                    pixels: decoded.pixels,
-                    width: decoded.width,
-                    height: decoded.height,
-                    hasAlpha: decoded.hasAlpha
-                  ) else {
-                status = .statusInvalidData
-                return
+    internal func markProviderFailure(final: Bool) {
+        state.withLock { locked in
+            locked.generation &+= 1
+            if final {
+                var invalid = CGImageSourceParsedState()
+                invalid.status = .statusInvalidData
+                locked.parsed = invalid
+            } else {
+                locked.parsed.status = .statusIncomplete
             }
-            frames.append(image)
-        }
-        imageCount = frameCount
-        properties = [
-            kCGImagePropertyPixelWidth: width,
-            kCGImagePropertyPixelHeight: height,
-            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB,
-            kCGImagePropertyImageCount: imageCount
-        ]
-
-        // Create properties for each frame
-        imageProperties = (0..<imageCount).map { _ in
-            [
-                kCGImagePropertyPixelWidth: width,
-                kCGImagePropertyPixelHeight: height
-            ]
-        }
-        decodedImages = frames
-        auxiliaryDataByIndex = (0..<imageCount).map { _ in [:] }
-
-        status = .statusComplete
-    }
-
-    internal func parseBMP(bytes: UnsafePointer<UInt8>, count: Int) {
-        guard count >= 30,
-              let decoded = BMPDecoder.decode(data: imageData),
-              let image = makeDecodedImage(
-                pixels: decoded.pixels,
-                width: decoded.width,
-                height: decoded.height,
-                hasAlpha: decoded.hasAlpha
-              ) else {
-            status = .statusInvalidData
-            return
-        }
-
-        // BMP header: width at offset 18, height at offset 22 (4 bytes each, little-endian)
-        let width = decoded.width
-        let height = decoded.height
-
-        let bitsPerPixel = Int(bytes[28]) | (Int(bytes[29]) << 8)
-
-        imageCount = 1
-        properties = [
-            kCGImagePropertyPixelWidth: width,
-            kCGImagePropertyPixelHeight: height,
-            kCGImagePropertyDepth: bitsPerPixel,
-            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
-        ]
-        imageProperties = [properties]
-        decodedImages = [image]
-        auxiliaryDataByIndex = [[:]]
-        status = .statusComplete
-    }
-
-    internal func parseTIFF() {
-        let pageCount = TIFFDecoder.pageCount(data: imageData)
-        guard pageCount > 0 else {
-            status = .statusInvalidData
-            return
-        }
-
-        var pages: [CGImage] = []
-        var perPageProperties: [[String: Any]] = []
-        pages.reserveCapacity(pageCount)
-        perPageProperties.reserveCapacity(pageCount)
-
-        for index in 0..<pageCount {
-            guard let page = TIFFDecoder.decode(data: imageData, frameIndex: index),
-                  let image = makeDecodedImage(
-                    pixels: page.pixels,
-                    width: page.width,
-                    height: page.height,
-                    hasAlpha: page.hasAlpha
-                  ) else {
-                status = .statusInvalidData
-                return
-            }
-            pages.append(image)
-            perPageProperties.append([
-                kCGImagePropertyPixelWidth: page.width,
-                kCGImagePropertyPixelHeight: page.height,
-                kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB
-            ])
-        }
-
-        imageCount = pageCount
-        // Top-level `properties` describes the first image for backward
-        // compatibility with single-page callers.
-        properties = perPageProperties[0]
-        if imageCount > 1 {
-            properties[kCGImagePropertyImageCount] = imageCount
-        }
-        imageProperties = perPageProperties
-        decodedImages = pages
-        auxiliaryDataByIndex = Array(repeating: [:], count: imageCount)
-        status = .statusComplete
-    }
-
-    private func colorModelFromPNGColorType(_ colorType: Int) -> String {
-        switch colorType {
-        case 0: return kCGImagePropertyColorModelGray
-        case 2, 6: return kCGImagePropertyColorModelRGB
-        case 3: return kCGImagePropertyColorModelRGB // Indexed
-        case 4: return kCGImagePropertyColorModelGray // Gray + Alpha
-        default: return kCGImagePropertyColorModelRGB
         }
     }
-}
-
-private func makeDecodedImage(
-    pixels: Data,
-    width: Int,
-    height: Int,
-    hasAlpha: Bool
-) -> CGImage? {
-    guard width > 0, height > 0 else { return nil }
-    let (pixelCount, pixelCountOverflow) = width.multipliedReportingOverflow(by: height)
-    let (byteCount, byteCountOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
-    guard !pixelCountOverflow,
-          !byteCountOverflow,
-          pixels.count == byteCount,
-          let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
-        return nil
-    }
-    let alphaInfo: CGImageAlphaInfo = hasAlpha ? .premultipliedLast : .noneSkipLast
-    return CGImage(
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bitsPerPixel: 32,
-        bytesPerRow: width * 4,
-        space: colorSpace,
-        bitmapInfo: CGBitmapInfo(rawValue: alphaInfo.rawValue),
-        provider: CGDataProvider(data: pixels),
-        decode: nil,
-        shouldInterpolate: true,
-        intent: .defaultIntent
-    )
 }
 
 // MARK: - CGImageSource Creation Functions
@@ -387,7 +112,7 @@ public func CGImageSourceCreateIncremental(_ options: [String: Any]?) -> CGImage
 
 /// Returns the uniform type identifier of the source container.
 public func CGImageSourceGetType(_ isrc: CGImageSource) -> String? {
-    return isrc.sourceType
+    isrc.parsedSnapshot().sourceType
 }
 
 /// Returns an array of uniform type identifiers that are supported for image sources.
@@ -403,36 +128,34 @@ public func CGImageSourceCopyTypeIdentifiers() -> [String] {
 
 /// Returns the number of images (not including thumbnails) in the image source.
 public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int {
-    return isrc.imageCount
+    isrc.parsedSnapshot().imageCount
 }
 
 /// Returns the properties of the image source.
 public func CGImageSourceCopyProperties(_ isrc: CGImageSource, _ options: [String: Any]?) -> [String: Any]? {
-    return isrc.properties
+    isrc.parsedSnapshot().materializedProperties()
 }
 
 /// Returns the properties of the image at a specified location in an image source.
 public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> [String: Any]? {
-    guard index >= 0 && index < isrc.imageProperties.count else {
-        return nil
-    }
-    return isrc.imageProperties[index]
+    isrc.parsedSnapshot().materializedProperties(at: index)
 }
 
 /// Returns auxiliary data, such as mattes and depth information, that accompany the image.
 public func CGImageSourceCopyAuxiliaryDataInfoAtIndex(_ isrc: CGImageSource, _ index: Int, _ auxiliaryImageDataType: String) -> [String: Any]? {
-    guard index >= 0 && index < isrc.auxiliaryDataByIndex.count else {
-        return nil
-    }
-    return isrc.auxiliaryDataByIndex[index][auxiliaryImageDataType]
+    isrc.parsedSnapshot().materializedAuxiliaryData(
+        at: index,
+        type: auxiliaryImageDataType
+    )
 }
 
 // MARK: - CGImageSource Image Extraction Functions
 
 /// Creates an image object from the data at the specified index in an image source.
 public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: [String: Any]?) -> CGImage? {
-    guard index >= 0 && index < isrc.decodedImages.count else { return nil }
-    return isrc.decodedImages[index]
+    let parsed = isrc.parsedSnapshot()
+    guard parsed.decodedImages.indices.contains(index) else { return nil }
+    return parsed.decodedImages[index].makeImage()
 }
 
 /// Creates a thumbnail version of the image at the specified index in an image source.
@@ -521,41 +244,34 @@ public func CGImageSourceGetPrimaryImageIndex(_ isrc: CGImageSource) -> Int {
 
 /// Return the status of an image source.
 public func CGImageSourceGetStatus(_ isrc: CGImageSource) -> CGImageSourceStatus {
-    return isrc.status
+    isrc.parsedSnapshot().status
 }
 
 /// Returns the current status of an image at the specified location in the image source.
 public func CGImageSourceGetStatusAtIndex(_ isrc: CGImageSource, _ index: Int) -> CGImageSourceStatus {
-    guard index >= 0 && index < isrc.imageCount else {
+    let parsed = isrc.parsedSnapshot()
+    guard index >= 0 && index < parsed.imageCount else {
         return .statusInvalidData
     }
-    return isrc.status
+    return parsed.status
 }
 
 // MARK: - CGImageSource Incremental Functions
 
 /// Updates the data in an incremental image source.
 public func CGImageSourceUpdateData(_ isrc: CGImageSource, _ data: Data, _ final: Bool) {
-    isrc.imageData = data
-    if final {
-        isrc.parseImageData()
-    } else {
-        isrc.status = .statusIncomplete
-    }
+    isrc.update(data: data, final: final)
 }
 
 /// Updates an incremental image source with a new data provider.
 ///
 /// Uses the provider's materialised data snapshot.
 public func CGImageSourceUpdateDataProvider(_ isrc: CGImageSource, _ provider: CGDataProvider, _ final: Bool) {
-    if let data = provider.data {
-        isrc.imageData = data
+    guard let data = provider.data else {
+        isrc.markProviderFailure(final: final)
+        return
     }
-    if final {
-        isrc.parseImageData()
-    } else {
-        isrc.status = .statusIncomplete
-    }
+    isrc.update(data: data, final: final)
 }
 
 // MARK: - CGImageSource Options Keys

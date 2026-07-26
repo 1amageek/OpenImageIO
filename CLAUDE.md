@@ -56,8 +56,9 @@ perl -e 'alarm 30; exec @ARGV' -- \
   xcodebuild test -scheme OpenImageIO -destination 'platform=macOS' \
   -only-testing:OpenImageIOTests
 
-# Build for WASM (requires Swift WASM SDK)
-swift build --swift-sdk swift-6.3.1-RELEASE_wasm
+# Build for WASM with the fixed Swift 6.4 snapshot and matching SDK
+TOOLCHAINS=org.swift.64202607171a xcrun swift build \
+  --swift-sdk swift-6.4.x-DEVELOPMENT-SNAPSHOT-2026-07-17-a_wasm
 ```
 
 ## Architecture
@@ -164,29 +165,16 @@ The following ImageIO APIs are intentionally NOT provided:
 
 **Note**: These CF-dependent APIs are legacy even on Darwin. Modern Swift code should use native type checking (`is`, `as?`) instead of `CFGetTypeID()`.
 
-### Partially Supported APIs
+### Explicitly Unsupported Data
 
 | API | Status |
 |-----|--------|
-| `CGImageSourceCopyAuxiliaryDataInfoAtIndex()` | ✅ HDR Gain Map (ISO 21496-1/Ultra HDR) in JPEG. ❌ Depth/Matte/Disparity not supported. |
+| `CGImageSourceCopyAuxiliaryDataInfoAtIndex()` | Returns `nil`; no auxiliary payload is advertised without container extraction and pixel conformance. |
 | `CGImageSourceGetPrimaryImageIndex()` | Returns 0 (correct for non-HEIF formats per Apple spec). HEIF not supported. |
 
-### HDR Gain Map Support (ISO 21496-1 / Ultra HDR)
-
-JPEG files containing HDR Gain Maps (as used by iOS 18+, Android 15+, Adobe apps) are supported:
-
-```swift
-let source = CGImageSourceCreateWithData(jpegData, nil)!
-let gainMapInfo = CGImageSourceCopyAuxiliaryDataInfoAtIndex(
-    source, 0, kCGImageAuxiliaryDataTypeHDRGainMap
-)
-
-if let info = gainMapInfo {
-    // Contains:
-    // - kCGImageAuxiliaryDataInfoData: Gain Map JPEG data
-    // - kCGImageAuxiliaryDataInfoDataDescription: hdrgm metadata (Version, GainMapMin, GainMapMax, etc.)
-}
-```
+Auxiliary encoding also fails finalization. It must not report success until
+the selected container embeds the payload and an independent decoder reads it
+back with equivalent metadata and pixels.
 
 ## Project Structure
 
@@ -237,7 +225,7 @@ import Testing
 
 ### Test Coverage
 
-**Verified baseline: 267 native tests**, plus external Apple ImageIO
+**Verified baseline: 292 native tests**, plus external Apple ImageIO
 conformance and browser checks for the five advertised pixel formats.
 
 Do not maintain hand-counted per-suite totals here; use the current test runner

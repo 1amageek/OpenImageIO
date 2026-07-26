@@ -35,7 +35,7 @@ let image = CGImageSourceCreateImageAtIndex(source!, 0, nil)
 
 ## Requirements
 
-- Swift 6.3.1+
+- Swift 6.4 development snapshot baseline
 - For WASM: SwiftWasm toolchain
 
 ## Installation
@@ -217,19 +217,33 @@ CGImageSourceUpdateData(source, completeData, true)
 | EXIF, IPTC, GPS, maker notes | Public property-key constants are present; embedded payload extraction is not yet implemented |
 | Auxiliary images | Not advertised; source lookup returns `nil` and destination finalization fails when auxiliary data is supplied |
 
+## Incremental and Concurrency Contracts
+
+`CGImageSource` publishes one coherent immutable snapshot for type, count,
+properties, status, and decoded pixels. Incremental updates parse outside the
+state lock and commit only when their generation is still current. A partial
+recognized header reports `.statusReadingHeader` or `.statusIncomplete`
+without being treated as a completed pixel decode.
+
+`CGImageDestination` captures image bytes and supported properties when an
+image is added. Finalization transitions atomically from collecting to
+finalizing, performs encoding and output I/O outside the lock, and publishes
+the result only for the matching finalization token.
+
 ## Building
 
 ```bash
-# Build for the current platform
-swift build
+# Build for the current platform with the fixed toolchain
+TOOLCHAINS=org.swift.64202607171a xcrun swift build
 
 # Run a focused native test target with a 30-second process timeout
 perl -e 'alarm 30; exec @ARGV' -- \
   xcodebuild test -scheme OpenImageIO -destination 'platform=macOS' \
   -only-testing:OpenImageIOTests
 
-# Build for WebAssembly with the matching Swift toolchain
-swiftly run swift build --swift-sdk swift-6.3.1-RELEASE_wasm
+# Build for WebAssembly with the matching Swift 6.4 SDK
+TOOLCHAINS=org.swift.64202607171a xcrun swift build \
+  --swift-sdk swift-6.4.x-DEVELOPMENT-SNAPSHOT-2026-07-17-a_wasm
 ```
 
 ## WASM-Build Smoke Test

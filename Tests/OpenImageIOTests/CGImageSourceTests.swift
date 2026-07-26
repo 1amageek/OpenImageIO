@@ -367,6 +367,69 @@ struct CGImageSourceIncrementalTests {
         #expect(CGImageSourceGetCount(source) == 1)
     }
 
+    @Test("Incremental updates expose header state before pixel completion")
+    func incrementalHeaderState() {
+        let source = CGImageSourceCreateIncremental(nil)
+
+        CGImageSourceUpdateData(source, Data(TestData.minimalPNG.prefix(7)), false)
+        #expect(CGImageSourceGetStatus(source) == .statusReadingHeader)
+        #expect(CGImageSourceGetType(source) == nil)
+        #expect(CGImageSourceGetCount(source) == 0)
+
+        CGImageSourceUpdateData(source, Data(TestData.minimalPNG.prefix(16)), false)
+        #expect(CGImageSourceGetStatus(source) == .statusIncomplete)
+        #expect(CGImageSourceGetType(source) == "public.png")
+        #expect(CGImageSourceGetCount(source) == 1)
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) == nil)
+
+        CGImageSourceUpdateData(source, Data(TestData.minimalPNG.prefix(26)), false)
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+        #expect(properties?[kCGImagePropertyPixelWidth] as? Int == 1)
+        #expect(properties?[kCGImagePropertyPixelHeight] as? Int == 1)
+
+        CGImageSourceUpdateData(source, TestData.minimalPNG, false)
+        #expect(CGImageSourceGetStatus(source) == .statusIncomplete)
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil) != nil)
+
+        CGImageSourceUpdateData(source, TestData.minimalPNG, true)
+        #expect(CGImageSourceGetStatus(source) == .statusComplete)
+    }
+
+    @Test("Concurrent incremental reads and updates preserve a coherent snapshot")
+    func concurrentReadsAndUpdates() async {
+        let source = CGImageSourceCreateIncremental(nil)
+        let complete = TestData.pngWithDimensions(width: 3, height: 2)
+        let partial = Data(complete.prefix(26))
+
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<64 {
+                group.addTask {
+                    CGImageSourceUpdateData(
+                        source,
+                        index.isMultiple(of: 2) ? complete : partial,
+                        false
+                    )
+                }
+                group.addTask {
+                    let count = CGImageSourceGetCount(source)
+                    let status = CGImageSourceGetStatus(source)
+                    #expect(count == 0 || count == 1)
+                    #expect(
+                        status == .statusIncomplete ||
+                        status == .statusReadingHeader
+                    )
+                }
+            }
+        }
+
+        CGImageSourceUpdateData(source, complete, true)
+        #expect(CGImageSourceGetStatus(source) == .statusComplete)
+        #expect(CGImageSourceGetCount(source) == 1)
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+        #expect(properties?[kCGImagePropertyPixelWidth] as? Int == 3)
+        #expect(properties?[kCGImagePropertyPixelHeight] as? Int == 2)
+    }
+
     @Test("Update data provider incrementally")
     func updateDataProviderIncrementally() {
         let source = CGImageSourceCreateIncremental(nil)

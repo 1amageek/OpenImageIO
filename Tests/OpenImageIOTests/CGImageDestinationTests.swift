@@ -228,6 +228,36 @@ struct CGImageDestinationImageAdditionTests {
         #expect(success == true)
     }
 
+    @Test("Add image from source captures immutable pixels at call time")
+    func addImageFromSourceCapturesSnapshot() throws {
+        let source = CGImageSourceCreateIncremental(nil)
+        CGImageSourceUpdateData(source, TestData.minimalPNG, true)
+
+        var destinationData = Data()
+        let destination = try #require(CGImageDestinationCreateWithData(
+            &destinationData,
+            "public.png",
+            1,
+            nil
+        ))
+        CGImageDestinationAddImageFromSource(destination, source, 0, nil)
+
+        CGImageSourceUpdateData(
+            source,
+            TestData.pngWithDimensions(width: 3, height: 2),
+            true
+        )
+
+        #expect(CGImageDestinationFinalize(destination))
+        let encoded = try #require(CGImageDestinationCopyData(destination))
+        let encodedSource = try #require(CGImageSourceCreateWithData(encoded, nil))
+        let properties = try #require(
+            CGImageSourceCopyPropertiesAtIndex(encodedSource, 0, nil)
+        )
+        #expect(properties[kCGImagePropertyPixelWidth] as? Int == 1)
+        #expect(properties[kCGImagePropertyPixelHeight] as? Int == 1)
+    }
+
     @Test("Add image from source with invalid index is ignored")
     func addImageFromSourceInvalidIndex() {
         let sourceData = TestData.minimalPNG
@@ -458,6 +488,32 @@ struct CGImageDestinationFinalizationTests {
         let success = CGImageDestinationFinalize(destination)
         #expect(success == true)
         #expect((consumer.data?.count ?? 0) > 0)
+    }
+
+    @Test("Short consumer writes are terminal and never report success")
+    func shortConsumerWriteIsTerminal() throws {
+        var callbacks = CGDataConsumerCallbacks(
+            putBytes: { _, _, count in max(0, count - 1) },
+            releaseConsumer: nil
+        )
+        let consumer = try #require(withUnsafePointer(to: &callbacks) {
+            CGDataConsumer(info: nil, cbks: $0)
+        })
+        let destination = try #require(CGImageDestinationCreateWithDataConsumer(
+            consumer,
+            "public.png",
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(
+            destination,
+            createTestImage(width: 2, height: 2),
+            nil
+        )
+
+        #expect(CGImageDestinationFinalize(destination) == false)
+        #expect(CGImageDestinationFinalize(destination) == false)
+        #expect(CGImageDestinationCopyData(destination) == nil)
     }
 }
 
