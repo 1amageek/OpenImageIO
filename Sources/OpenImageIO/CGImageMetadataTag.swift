@@ -6,8 +6,83 @@
 @preconcurrency import Foundation
 import OpenCoreGraphics
 
+internal indirect enum CGImageMetadataValue: Sendable {
+    case string(String)
+    case bool(Bool)
+    case int(Int)
+    case int8(Int8)
+    case int16(Int16)
+    case int32(Int32)
+    case int64(Int64)
+    case uint(UInt)
+    case uint8(UInt8)
+    case uint16(UInt16)
+    case uint32(UInt32)
+    case uint64(UInt64)
+    case float(Float)
+    case double(Double)
+    case array([CGImageMetadataValue])
+    case dictionary([String: CGImageMetadataValue])
+    case unsupported
+
+    internal init(_ value: Any?) {
+        switch value {
+        case let value as String: self = .string(value)
+        case let value as Bool: self = .bool(value)
+        case let value as Int: self = .int(value)
+        case let value as Int8: self = .int8(value)
+        case let value as Int16: self = .int16(value)
+        case let value as Int32: self = .int32(value)
+        case let value as Int64: self = .int64(value)
+        case let value as UInt: self = .uint(value)
+        case let value as UInt8: self = .uint8(value)
+        case let value as UInt16: self = .uint16(value)
+        case let value as UInt32: self = .uint32(value)
+        case let value as UInt64: self = .uint64(value)
+        case let value as Float: self = .float(value)
+        case let value as Double: self = .double(value)
+        case let values as [Any]:
+            let captured = values.map(Self.init)
+            self = captured.contains(where: { !$0.isSupported }) ? .unsupported : .array(captured)
+        case let values as [String: Any]:
+            let captured = values.mapValues(Self.init)
+            self = captured.values.contains(where: { !$0.isSupported })
+                ? .unsupported
+                : .dictionary(captured)
+        default: self = .unsupported
+        }
+    }
+
+    internal var isSupported: Bool {
+        if case .unsupported = self { return false }
+        return true
+    }
+
+    internal var materialized: Any? {
+        switch self {
+        case .string(let value): return value
+        case .bool(let value): return value
+        case .int(let value): return value
+        case .int8(let value): return value
+        case .int16(let value): return value
+        case .int32(let value): return value
+        case .int64(let value): return value
+        case .uint(let value): return value
+        case .uint8(let value): return value
+        case .uint16(let value): return value
+        case .uint32(let value): return value
+        case .uint64(let value): return value
+        case .float(let value): return value
+        case .double(let value): return value
+        case .array(let values): return values.compactMap(\.materialized)
+        case .dictionary(let values): return values.compactMapValues(\.materialized)
+        case .unsupported: return nil
+        }
+    }
+}
+
 /// An immutable type that contains information about a single piece of image metadata.
-public class CGImageMetadataTag: Hashable, Equatable {
+public final class CGImageMetadataTag: Hashable, Equatable, Sendable {
 
     // MARK: - Internal Storage
 
@@ -15,7 +90,7 @@ public class CGImageMetadataTag: Hashable, Equatable {
     internal let prefix: String?
     internal let name: String
     internal let type: CGImageMetadataType
-    internal let value: Any
+    internal let storedValue: CGImageMetadataValue
     internal let qualifiers: [CGImageMetadataTag]
     internal let children: [CGImageMetadataTag]
 
@@ -26,7 +101,7 @@ public class CGImageMetadataTag: Hashable, Equatable {
         prefix: String?,
         name: String,
         type: CGImageMetadataType,
-        value: Any,
+        value: Any?,
         qualifiers: [CGImageMetadataTag] = [],
         children: [CGImageMetadataTag] = []
     ) {
@@ -34,7 +109,7 @@ public class CGImageMetadataTag: Hashable, Equatable {
         self.prefix = prefix
         self.name = name
         self.type = type
-        self.value = value
+        self.storedValue = CGImageMetadataValue(value)
         self.qualifiers = qualifiers
         self.children = children
     }
@@ -47,6 +122,10 @@ public class CGImageMetadataTag: Hashable, Equatable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
+    }
+
+    internal var value: Any? {
+        storedValue.materialized
     }
 }
 
@@ -62,6 +141,7 @@ public func CGImageMetadataTagCreate(
 ) -> CGImageMetadataTag? {
     guard !name.isEmpty else { return nil }
     guard !xmlns.isEmpty else { return nil }
+    guard CGImageMetadataValue(value).isSupported else { return nil }
 
     return CGImageMetadataTag(
         namespace: xmlns,

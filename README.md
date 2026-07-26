@@ -2,7 +2,7 @@
 
 A Swift library providing ImageIO-compatible APIs and pure-Swift codecs for WebAssembly (WASM) and other non-Apple platforms.
 
-[![Swift](https://img.shields.io/badge/Swift-6.3.1-orange.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/Swift-6.4%20snapshot-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-WASM%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
@@ -229,6 +229,12 @@ without being treated as a completed pixel decode.
 image is added. Finalization transitions atomically from collecting to
 finalizing, performs encoding and output I/O outside the lock, and publishes
 the result only for the matching finalization token.
+
+`CGImageMetadata` protects tags and namespace registrations as one state.
+Reads use coherent snapshots, compound mutations hold one lock, and mutable
+copies own independent state. Metadata tag values are captured into immutable
+typed storage at creation; unsupported values, including unsupported values
+nested inside arrays or dictionaries, fail at the creation boundary.
 
 ## Building
 

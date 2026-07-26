@@ -5,6 +5,7 @@
 
 @preconcurrency import Foundation
 import OpenCoreGraphics
+import Synchronization
 
 internal let standardXMPNamespaces: [String: String] = [
     kCGImageMetadataPrefixDublinCore: kCGImageMetadataNamespaceDublinCore,
@@ -23,21 +24,27 @@ internal let standardXMPNamespaces: [String: String] = [
 /// An immutable object that contains the XMP metadata associated with an image.
 public class CGImageMetadata: Hashable, Equatable {
 
-    // MARK: - Internal Storage
+    internal struct State: Sendable {
+        var tags: [CGImageMetadataTag]
+        var namespaceByPrefix: [String: String]
+    }
 
-    internal var tags: [CGImageMetadataTag]
-    internal var namespaceByPrefix: [String: String]
+    private let state: Mutex<State>
 
     // MARK: - Initialization
 
     internal init(tags: [CGImageMetadataTag] = []) {
-        self.tags = tags
-        self.namespaceByPrefix = standardXMPNamespaces
+        self.state = Mutex(State(
+            tags: tags,
+            namespaceByPrefix: standardXMPNamespaces
+        ))
     }
 
     internal init(tags: [CGImageMetadataTag], namespaceByPrefix: [String: String]) {
-        self.tags = tags
-        self.namespaceByPrefix = namespaceByPrefix
+        self.state = Mutex(State(
+            tags: tags,
+            namespaceByPrefix: namespaceByPrefix
+        ))
     }
 
     // MARK: - Hashable & Equatable
@@ -48,6 +55,16 @@ public class CGImageMetadata: Hashable, Equatable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
+    }
+
+    internal func snapshot() -> State {
+        state.withLock { $0 }
+    }
+
+    internal func mutate<Result: Sendable>(
+        _ body: (inout sending State) -> sending Result
+    ) -> Result {
+        state.withLock(body)
     }
 }
 
@@ -62,17 +79,6 @@ public class CGMutableImageMetadata: CGImageMetadata {
 
     internal init(tags: [CGImageMetadataTag], registeredNamespaces: [String: String]) {
         super.init(tags: tags, namespaceByPrefix: registeredNamespaces)
-    }
-
-    // MARK: - Mutating Methods
-
-    internal func addTag(_ tag: CGImageMetadataTag) {
-        tags.append(tag)
-    }
-
-    internal func removeTag(at index: Int) {
-        guard index >= 0 && index < tags.count else { return }
-        tags.remove(at: index)
     }
 }
 
@@ -94,9 +100,10 @@ public func CGImageMetadataCreateMutable() -> CGMutableImageMetadata {
 
 /// Creates a mutable copy of metadata from an existing metadata object.
 public func CGImageMetadataCreateMutableCopy(_ metadata: CGImageMetadata) -> CGMutableImageMetadata? {
-    CGMutableImageMetadata(
-        tags: metadata.tags,
-        registeredNamespaces: metadata.namespaceByPrefix
+    let snapshot = metadata.snapshot()
+    return CGMutableImageMetadata(
+        tags: snapshot.tags,
+        registeredNamespaces: snapshot.namespaceByPrefix
     )
 }
 
@@ -110,13 +117,14 @@ public func CGImageMetadataCopyTagWithPath(
 ) -> CGImageMetadataTag? {
     guard let parsedPath = MetadataPath(path) else { return nil }
     guard parent != nil || parsedPath.components.first?.prefix != nil else { return nil }
-    return resolve(path: parsedPath, in: metadata.tags, parent: parent)
+    return resolve(path: parsedPath, in: metadata.snapshot().tags, parent: parent)
 }
 
 /// Returns an array of root-level metadata tags from the specified metadata object.
 public func CGImageMetadataCopyTags(_ metadata: CGImageMetadata) -> [CGImageMetadataTag]? {
-    guard !metadata.tags.isEmpty else { return nil }
-    return metadata.tags
+    let tags = metadata.snapshot().tags
+    guard !tags.isEmpty else { return nil }
+    return tags
 }
 
 /// Searches for the specified image property and, if found, returns the corresponding tag object.
@@ -125,7 +133,7 @@ public func CGImageMetadataCopyTagMatchingImageProperty(
     _ dictionaryName: String,
     _ propertyName: String
 ) -> CGImageMetadataTag? {
-    metadata.tags.first { tag in
+    metadata.snapshot().tags.first { tag in
         tag.namespace == dictionaryName && tag.name == propertyName
     }
 }
@@ -165,7 +173,7 @@ public func CGImageMetadataEnumerateTagsUsingBlock(
         guard let root = CGImageMetadataCopyTagWithPath(metadata, nil, rootPath) else { return }
         roots = [(rootPath, root)]
     } else {
-        roots = metadata.tags.map { (qualifiedName(for: $0), $0) }
+        roots = metadata.snapshot().tags.map { (qualifiedName(for: $0), $0) }
     }
 
     for root in roots {
@@ -185,15 +193,9 @@ public func CGImageMetadataCreateXMPData(
     _ metadata: CGImageMetadata,
     _ options: [String: Any]?
 ) -> Data? {
-    XMPCodec.encode(tags: metadata.tags, namespaces: metadata.namespaceByPrefix)
+    let snapshot = metadata.snapshot()
+    return XMPCodec.encode(tags: snapshot.tags, namespaces: snapshot.namespaceByPrefix)
 }
-
-private func prefixForNamespace(_ namespace: String) -> String? {
-    standardXMPNamespaces.first(where: { $0.value == namespace })?.key
-}
-
-// MARK: - CGImageMetadata Type Functions
-
 
 // MARK: - CGMutableImageMetadata Functions
 
@@ -210,23 +212,31 @@ public func CGImageMetadataRegisterNamespaceForPrefix(
         return false
     }
 
-    if let registeredNamespace = metadata.namespaceByPrefix[prefix] {
-        guard registeredNamespace == xmlns else {
-            error?.pointee = metadataError(.prefixConflict, description: "The prefix is already registered for another namespace.")
-            return false
+    let outcome = metadata.mutate { state -> Int in
+        if let registeredNamespace = state.namespaceByPrefix[prefix] {
+            return registeredNamespace == xmlns ? 0 : 1
         }
-        return true
-    }
-    if let registeredPrefix = metadata.namespaceByPrefix.first(where: { $0.value == xmlns })?.key {
-        guard registeredPrefix == prefix else {
-            error?.pointee = metadataError(.prefixConflict, description: "The namespace is already registered with another prefix.")
-            return false
+        if let registeredPrefix = state.namespaceByPrefix.first(where: { $0.value == xmlns })?.key {
+            return registeredPrefix == prefix ? 0 : 2
         }
-        return true
+        state.namespaceByPrefix[prefix] = xmlns
+        return 0
     }
-
-    metadata.namespaceByPrefix[prefix] = xmlns
-    return true
+    switch outcome {
+    case 0:
+        return true
+    case 1:
+        error?.pointee = metadataError(
+            .prefixConflict,
+            description: "The prefix is already registered for another namespace."
+        )
+    default:
+        error?.pointee = metadataError(
+            .prefixConflict,
+            description: "The namespace is already registered with another prefix."
+        )
+    }
+    return false
 }
 
 /// Sets the value of the metadata tag at the specified path.
@@ -239,23 +249,36 @@ public func CGImageMetadataSetValueWithPath(
 ) -> Bool {
     guard let parsedPath = MetadataPath(path) else { return false }
     guard parent != nil || parsedPath.components.first?.prefix != nil else { return false }
-    if let existing = resolve(path: parsedPath, in: metadata.tags, parent: parent) {
-        guard let replacement = tagByReplacingValue(existing, value: value, metadata: metadata) else {
-            return false
+    return metadata.mutate { state in
+        if let existing = resolve(path: parsedPath, in: state.tags, parent: parent) {
+            guard let replacement = tagByReplacingValue(
+                existing,
+                value: value,
+                namespaceByPrefix: state.namespaceByPrefix
+            ) else { return false }
+            return replaceTag(in: &state.tags, target: existing, replacement: replacement)
         }
-        return replaceTag(in: &metadata.tags, target: existing, replacement: replacement)
-    }
 
-    guard isMetadataScalar(value),
-          let component = parsedPath.components.last,
-          component.selector == nil,
-          component.qualifier == nil,
-          let prefix = component.prefix ?? parent?.prefix ?? parsedPath.components.dropLast().last?.prefix,
-          let namespace = metadata.namespaceByPrefix[prefix],
-          let tag = CGImageMetadataTagCreate(namespace, prefix, component.name, .string, value) else {
-        return false
+        guard isMetadataScalar(value),
+              let component = parsedPath.components.last,
+              component.selector == nil,
+              component.qualifier == nil,
+              let prefix = component.prefix ?? parent?.prefix ?? parsedPath.components.dropLast().last?.prefix,
+              let namespace = state.namespaceByPrefix[prefix],
+              let tag = CGImageMetadataTagCreate(
+                namespace,
+                prefix,
+                component.name,
+                .string,
+                value
+              ) else { return false }
+        return insert(
+            tag: tag,
+            for: parsedPath,
+            parent: parent,
+            tags: &state.tags
+        )
     }
-    return insert(tag: tag, for: parsedPath, parent: parent, metadata: metadata)
 }
 
 /// Sets the value of a metadata tag that matches the specified image property.
@@ -265,16 +288,24 @@ public func CGImageMetadataSetValueMatchingImageProperty(
     _ propertyName: String,
     _ value: Any
 ) -> Bool {
-    guard isMetadataScalar(value),
-          let prefix = metadata.namespaceByPrefix.first(where: { $0.value == dictionaryName })?.key,
-          let tag = CGImageMetadataTagCreate(dictionaryName, prefix, propertyName, .string, value) else {
-        return false
+    guard isMetadataScalar(value) else { return false }
+    return metadata.mutate { state in
+        guard let prefix = state.namespaceByPrefix.first(where: { $0.value == dictionaryName })?.key,
+              let tag = CGImageMetadataTagCreate(
+                dictionaryName,
+                prefix,
+                propertyName,
+                .string,
+                value
+              ) else { return false }
+        if let existing = state.tags.first(where: {
+            $0.namespace == dictionaryName && $0.name == propertyName
+        }) {
+            return replaceTag(in: &state.tags, target: existing, replacement: tag)
+        }
+        state.tags.append(tag)
+        return true
     }
-    if let existing = metadata.tags.first(where: { $0.namespace == dictionaryName && $0.name == propertyName }) {
-        return replaceTag(in: &metadata.tags, target: existing, replacement: tag)
-    }
-    metadata.tags.append(tag)
-    return true
 }
 
 /// Removes the metadata tag at the specified path.
@@ -284,11 +315,13 @@ public func CGImageMetadataRemoveTagWithPath(
     _ path: String
 ) -> Bool {
     guard let parsedPath = MetadataPath(path),
-          parent != nil || parsedPath.components.first?.prefix != nil,
-          let target = resolve(path: parsedPath, in: metadata.tags, parent: parent) else {
-        return false
+          parent != nil || parsedPath.components.first?.prefix != nil else { return false }
+    return metadata.mutate { state in
+        guard let target = resolve(path: parsedPath, in: state.tags, parent: parent) else {
+            return false
+        }
+        return removeTag(from: &state.tags, target: target)
     }
-    return removeTag(from: &metadata.tags, target: target)
 }
 
 /// Sets a tag in a mutable metadata object.
@@ -301,28 +334,32 @@ public func CGImageMetadataSetTagWithPath(
 ) -> Bool {
     guard let parsedPath = MetadataPath(path) else { return false }
     guard parent != nil || parsedPath.components.first?.prefix != nil else { return false }
-    if let existing = resolve(path: parsedPath, in: metadata.tags, parent: parent) {
-        return replaceTag(in: &metadata.tags, target: existing, replacement: tag)
+    return metadata.mutate { state in
+        if let existing = resolve(path: parsedPath, in: state.tags, parent: parent) {
+            return replaceTag(in: &state.tags, target: existing, replacement: tag)
+        }
+        guard let component = parsedPath.components.last,
+              component.selector == nil,
+              component.qualifier == nil,
+              component.name == tag.name,
+              component.prefix == nil || component.prefix == tag.prefix else { return false }
+        if let prefix = tag.prefix {
+            guard state.namespaceByPrefix[prefix].map({ $0 == tag.namespace }) ?? true else {
+                return false
+            }
+            state.namespaceByPrefix[prefix] = tag.namespace
+        }
+        return insert(tag: tag, for: parsedPath, parent: parent, tags: &state.tags)
     }
-    guard let component = parsedPath.components.last,
-          component.selector == nil,
-          component.qualifier == nil,
-          component.name == tag.name,
-          component.prefix == nil || component.prefix == tag.prefix else { return false }
-    if let prefix = tag.prefix {
-        guard metadata.namespaceByPrefix[prefix].map({ $0 == tag.namespace }) ?? true else { return false }
-        metadata.namespaceByPrefix[prefix] = tag.namespace
-    }
-    return insert(tag: tag, for: parsedPath, parent: parent, metadata: metadata)
 }
 
-private struct MetadataPath {
-    struct Name {
+private struct MetadataPath: Sendable {
+    struct Name: Sendable {
         let prefix: String?
         let name: String
     }
 
-    struct Component {
+    struct Component: Sendable {
         let prefix: String?
         let name: String
         let selector: String?
@@ -438,10 +475,10 @@ private func insert(
     tag: CGImageMetadataTag,
     for path: MetadataPath,
     parent: CGImageMetadataTag?,
-    metadata: CGMutableImageMetadata
+    tags: inout [CGImageMetadataTag]
 ) -> Bool {
     if parent == nil && path.components.count == 1 {
-        metadata.tags.append(tag)
+        tags.append(tag)
         return true
     }
 
@@ -454,7 +491,7 @@ private func insert(
         guard !parentComponents.isEmpty else { return false }
         destinationParent = resolve(
             path: MetadataPath(components: parentComponents),
-            in: metadata.tags,
+            in: tags,
             parent: nil
         )
     }
@@ -465,13 +502,13 @@ private func insert(
         children: destinationParent.children + [tag],
         qualifiers: destinationParent.qualifiers
     )
-    return replaceTag(in: &metadata.tags, target: destinationParent, replacement: replacement)
+    return replaceTag(in: &tags, target: destinationParent, replacement: replacement)
 }
 
 private func tagByReplacingValue(
     _ tag: CGImageMetadataTag,
     value: Any,
-    metadata: CGImageMetadata
+    namespaceByPrefix: [String: String]
 ) -> CGImageMetadataTag? {
     let children: [CGImageMetadataTag]
     switch tag.type {
@@ -506,12 +543,12 @@ private func tagByReplacingValue(
                 childPrefix = String(nameParts[0])
                 childName = String(nameParts[1])
                 guard let childPrefix,
-                      let namespace = metadata.namespaceByPrefix[childPrefix] else { return nil }
+                      let namespace = namespaceByPrefix[childPrefix] else { return nil }
                 childNamespace = namespace
             } else {
                 childPrefix = tag.children.first(where: { $0.name == key })?.prefix ?? tag.prefix
                 childName = key
-                childNamespace = childPrefix.flatMap { metadata.namespaceByPrefix[$0] } ?? tag.namespace
+                childNamespace = childPrefix.flatMap { namespaceByPrefix[$0] } ?? tag.namespace
             }
             guard !childName.isEmpty else { return nil }
             newChildren.append(CGImageMetadataTag(
@@ -609,14 +646,16 @@ private func rebuilt(
     children: [CGImageMetadataTag],
     qualifiers: [CGImageMetadataTag]
 ) -> CGImageMetadataTag {
-    let value: Any
+    let value: Any?
     switch tag.type {
     case .arrayUnordered, .arrayOrdered, .alternateArray, .alternateText:
-        value = children.map(\.value)
+        value = children.compactMap(\.value)
     case .structure:
         var dictionary: [String: Any] = [:]
         for child in children {
-            dictionary[qualifiedName(for: child)] = child.value
+            if let childValue = child.value {
+                dictionary[qualifiedName(for: child)] = childValue
+            }
         }
         value = dictionary
     default:

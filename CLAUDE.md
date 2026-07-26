@@ -225,7 +225,7 @@ import Testing
 
 ### Test Coverage
 
-**Verified baseline: 292 native tests**, plus external Apple ImageIO
+**Verified baseline: 293 native tests**, plus external Apple ImageIO
 conformance and browser checks for the five advertised pixel formats.
 
 Do not maintain hand-counted per-suite totals here; use the current test runner

@@ -36,6 +36,20 @@ struct CGImageMetadataCreationTests {
         #expect(value == "Test Title")
     }
 
+    @Test("Mutable copies own independent metadata state")
+    func mutableCopyIsIndependent() throws {
+        let original = CGImageMetadataCreateMutable()
+        #expect(CGImageMetadataSetValueWithPath(original, nil, "dc:title", "Original"))
+
+        let copy = try #require(CGImageMetadataCreateMutableCopy(original))
+        #expect(CGImageMetadataSetValueWithPath(copy, nil, "dc:title", "Copy"))
+        #expect(CGImageMetadataSetValueWithPath(original, nil, "dc:creator", "Author"))
+
+        #expect(CGImageMetadataCopyStringValueWithPath(original, nil, "dc:title") == "Original")
+        #expect(CGImageMetadataCopyStringValueWithPath(copy, nil, "dc:title") == "Copy")
+        #expect(CGImageMetadataCopyStringValueWithPath(copy, nil, "dc:creator") == nil)
+    }
+
     @Test("Create metadata from XMP data")
     func createFromXMPData() {
         let xmpData = TestData.sampleXMP
@@ -555,18 +569,25 @@ struct CGImageMetadataXMPTests {
         #expect(paths.contains("dc:description[en]?xml:lang"))
     }
 
-    @Test("Unsupported tag values fail XMP serialization")
-    func unsupportedValueFailsSerialization() throws {
-        let metadata = CGImageMetadataCreateMutable()
-        let tag = try #require(CGImageMetadataTagCreate(
+    @Test("Unsupported tag values fail at the creation boundary")
+    func unsupportedValueFailsCreation() {
+        let tag = CGImageMetadataTagCreate(
             kCGImageMetadataNamespaceDublinCore,
             kCGImageMetadataPrefixDublinCore,
             "binary",
             .string,
             Data([0x01, 0x02])
-        ))
-        #expect(CGImageMetadataSetTagWithPath(metadata, nil, "dc:binary", tag))
-        #expect(CGImageMetadataCreateXMPData(metadata, nil) == nil)
+        )
+        #expect(tag == nil)
+
+        let nestedTag = CGImageMetadataTagCreate(
+            kCGImageMetadataNamespaceDublinCore,
+            kCGImageMetadataPrefixDublinCore,
+            "nestedBinary",
+            .structure,
+            ["payload": Data([0x03, 0x04])]
+        )
+        #expect(nestedTag == nil)
     }
 }
 

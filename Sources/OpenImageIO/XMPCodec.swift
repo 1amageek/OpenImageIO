@@ -145,7 +145,7 @@ internal enum XMPCodec {
             }
 
             let itemTags = try itemNodes.map { try arrayItemTag(from: $0) }
-            let values = itemTags.map(\.value)
+            let values = itemTags.compactMap(\.value)
             let type: CGImageMetadataType
             switch container.localName {
             case "Bag":
@@ -394,7 +394,7 @@ internal enum XMPCodec {
         return "\(prefix):\(tag.name)"
     }
 
-    private static func scalarString(_ value: Any) -> String? {
+    private static func scalarString(_ value: Any?) -> String? {
         switch value {
         case let string as String: return string
         case let value as Bool: return value ? "true" : "false"
