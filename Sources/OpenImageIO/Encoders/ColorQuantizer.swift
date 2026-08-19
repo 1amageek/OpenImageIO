@@ -3,7 +3,7 @@
 //
 // Color quantization algorithms: Median Cut and Floyd-Steinberg dithering
 
-import Foundation
+import OpenFoundation
 
 /// Color quantization using the Median Cut algorithm
 internal struct MedianCutQuantizer {

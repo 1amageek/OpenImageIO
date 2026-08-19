@@ -3,7 +3,7 @@
 //
 // PNG image format encoder with DEFLATE compression
 
-import Foundation
+import OpenFoundation
 import OpenCoreGraphics
 
 /// PNG image encoder

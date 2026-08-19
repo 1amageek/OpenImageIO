@@ -269,6 +269,14 @@ PNG/JPEG/GIF/BMP/TIFF, a Swift WASM PNG pixel roundtrip, and Chromium decode
 checks for PNG/JPEG/GIF/BMP. This is evidence for those exercised paths, not a
 claim of complete ImageIO parity.
 
+## Foundation boundary
+
+OpenImageIO imports `OpenFoundation` for Foundation-compatible values and URL-backed
+`Data` operations. It does not choose `Foundation` or `FoundationEssentials` itself.
+Full Swift therefore uses the pinned toolchain Foundation identity, while an Embedded
+application selects `OpenFoundationEmbeddedFileSystem` only at its composition root
+when file-backed ImageIO is part of that deployment.
+
 ## Cross-Platform Pattern
 
 The recommended pattern for cross-platform code:

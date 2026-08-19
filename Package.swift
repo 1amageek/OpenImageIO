@@ -21,13 +21,17 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../OpenCoreGraphics"),
+        .package(path: "../OpenFoundation"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "OpenImageIO",
-            dependencies: ["OpenCoreGraphics"]
+            dependencies: [
+                "OpenCoreGraphics",
+                .product(name: "OpenFoundation", package: "OpenFoundation")
+            ]
         ),
         .testTarget(
             name: "OpenImageIOTests",

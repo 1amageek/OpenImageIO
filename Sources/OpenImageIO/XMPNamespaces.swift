@@ -4,7 +4,7 @@
 // ImageIO-compatible API surface for non-Apple platforms
 // XMP Namespaces and Prefixes
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 // MARK: - Public Namespaces
 

@@ -1,7 +1,7 @@
 // ImageSourceParser.swift
 // OpenImageIO
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 import OpenCoreGraphics
 
 internal enum CGImageSourcePropertyValue: Sendable {

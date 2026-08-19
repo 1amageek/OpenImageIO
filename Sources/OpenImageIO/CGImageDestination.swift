@@ -3,7 +3,7 @@
 //
 // ImageIO-compatible API surface for non-Apple platforms
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 import OpenCoreGraphics
 import Synchronization
 

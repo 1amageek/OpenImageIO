@@ -1,7 +1,7 @@
 // XMPCodec.swift
 // OpenImageIO
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 internal enum XMPCodec {
     private static let rdfNamespace = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"

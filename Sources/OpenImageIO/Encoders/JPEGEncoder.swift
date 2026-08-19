@@ -3,7 +3,7 @@
 //
 // Full JPEG encoder with DCT, quantization, and Huffman coding
 
-import Foundation
+import OpenFoundation
 import OpenCoreGraphics
 
 /// JPEG image encoder with baseline DCT compression

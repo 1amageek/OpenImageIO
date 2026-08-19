@@ -3,7 +3,7 @@
 //
 // LZW compression/decompression for GIF format
 
-import Foundation
+import OpenFoundation
 
 /// LZW compression and decompression (GIF variant)
 internal struct LZW {

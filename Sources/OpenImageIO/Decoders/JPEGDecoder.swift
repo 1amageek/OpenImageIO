@@ -3,7 +3,7 @@
 //
 // JPEG image format decoder (Baseline DCT)
 
-import Foundation
+import OpenFoundation
 
 /// JPEG image decoder supporting baseline DCT
 internal struct JPEGDecoder {

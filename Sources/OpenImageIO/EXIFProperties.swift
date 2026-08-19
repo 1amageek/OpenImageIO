@@ -11,7 +11,7 @@
 // The sole exception is the top-level `kCGImagePropertyOrientation`, which
 // JPEG / TIFF decoders may populate in the future (tag 0x0112).
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 // MARK: - Dictionaries
 

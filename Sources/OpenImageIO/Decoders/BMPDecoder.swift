@@ -3,7 +3,7 @@
 //
 // BMP image format decoder
 
-import Foundation
+import OpenFoundation
 
 /// BMP image decoder supporting various BMP formats
 internal struct BMPDecoder {

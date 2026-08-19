@@ -9,7 +9,7 @@
 // `CGImageSourceCopyPropertiesAtIndex` does not populate
 // `kCGImagePropertyIPTCDictionary` — accessing it returns nil.
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 // MARK: - Dictionary
 

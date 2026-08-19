@@ -3,7 +3,7 @@
 //
 // GIF image format encoder with LZW compression
 
-import Foundation
+import OpenFoundation
 import OpenCoreGraphics
 
 /// GIF image encoder with LZW compression

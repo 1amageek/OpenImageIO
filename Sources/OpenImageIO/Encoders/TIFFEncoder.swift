@@ -3,7 +3,7 @@
 //
 // TIFF image format encoder with multi-page support
 
-import Foundation
+import OpenFoundation
 import OpenCoreGraphics
 
 /// TIFF image encoder

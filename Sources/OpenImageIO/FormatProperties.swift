@@ -4,7 +4,7 @@
 // ImageIO-compatible API surface for non-Apple platforms
 // Format-specific image properties
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 // MARK: - TIFF Image Properties
 

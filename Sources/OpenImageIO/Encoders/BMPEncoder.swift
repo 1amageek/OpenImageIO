@@ -3,7 +3,7 @@
 //
 // BMP image format encoder with 24-bit RGB and 32-bit RGBA support
 
-import Foundation
+import OpenFoundation
 import OpenCoreGraphics
 
 /// BMP image encoder

@@ -3,7 +3,7 @@
 //
 // ImageIO-compatible API surface for non-Apple platforms
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 
 /// Constants for errors that occur when getting or setting metadata information.
 public enum CGImageMetadataErrors: Int32, Sendable, Hashable, Equatable, RawRepresentable {

@@ -66,14 +66,19 @@ TOOLCHAINS=org.swift.64202607171a xcrun swift build \
 ### Dependencies
 
 - **OpenCoreGraphics**: For `CGImage`, `CGDataProvider`, `CGDataConsumer`, `CGColorSpace`, etc.
-- **Foundation**: For basic types (`Data`, `URL`, etc.)
+- **OpenFoundation**: The shared Foundation boundary for `Data`, `URL`, string encoding, and file-backed `Data` APIs
 
 ### Import Pattern
 
 ```swift
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 import OpenCoreGraphics
 ```
+
+OpenImageIO does not select `Foundation`, `FoundationEssentials`, or an Embedded
+file-system backend. Full Swift receives the pinned toolchain Foundation through
+OpenFoundation. An Embedded composition root must explicitly link
+`OpenFoundationEmbeddedFileSystem` when URL-backed image I/O is enabled.
 
 ### API Design
 

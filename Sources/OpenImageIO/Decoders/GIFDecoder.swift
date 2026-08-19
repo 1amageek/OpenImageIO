@@ -3,7 +3,7 @@
 //
 // GIF image format decoder with full animation support
 
-import Foundation
+import OpenFoundation
 
 /// GIF image decoder with full animation support
 internal struct GIFDecoder {

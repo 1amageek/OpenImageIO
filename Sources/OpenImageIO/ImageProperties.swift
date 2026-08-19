@@ -4,7 +4,7 @@
 // ImageIO-compatible API surface for non-Apple platforms
 // Properties that apply to the container in general, and not necessarily to an individual image in the container.
 
-@preconcurrency import Foundation
+@preconcurrency import OpenFoundation
 import OpenCoreGraphics
 
 // MARK: - Platform Compatibility

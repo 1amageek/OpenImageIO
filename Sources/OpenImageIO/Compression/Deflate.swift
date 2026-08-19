@@ -4,7 +4,7 @@
 // DEFLATE compression/decompression implementation (RFC 1951)
 // with zlib wrapper support (RFC 1950)
 
-import Foundation
+import OpenFoundation
 
 /// DEFLATE compression and decompression
 internal struct Deflate {

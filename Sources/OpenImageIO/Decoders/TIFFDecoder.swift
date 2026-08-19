@@ -3,7 +3,7 @@
 //
 // TIFF image format decoder (basic support)
 
-import Foundation
+import OpenFoundation
 
 /// TIFF image decoder supporting basic uncompressed and LZW-compressed TIFF
 internal struct TIFFDecoder {

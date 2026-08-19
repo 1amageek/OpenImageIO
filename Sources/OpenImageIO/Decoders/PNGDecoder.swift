@@ -3,7 +3,7 @@
 //
 // PNG image format decoder
 
-import Foundation
+import OpenFoundation
 
 /// PNG image decoder
 internal struct PNGDecoder {
